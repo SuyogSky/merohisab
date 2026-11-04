@@ -1,0 +1,239 @@
+================================================================================
+MEROHISAB (मेरो हिसाब) v3.0.0 — AUTOMATED VERIFICATION & AUDIT REPORT
+Generated: 2026-11-03T14:13:04.076Z
+================================================================================
+
+--- 1. CALENDAR ENGINE SUITE (node tests/calendar.test.js) ---
+================================================================================
+SUITE A: OFFICIALLY PUBLISHED YEARS (BS 2070 - BS 2083) INDEPENDENT ACCURACY
+================================================================================
+[New Year] 2070-01-01 <-> 2013-04-14 (MoHA / Panchanga 2070): PASS
+[New Year] 2071-01-01 <-> 2014-04-14 (MoHA / Panchanga 2071): PASS
+[New Year] 2072-01-01 <-> 2015-04-14 (MoHA / Panchanga 2072): PASS
+[New Year] 2073-01-01 <-> 2016-04-13 (MoHA / Panchanga 2073): PASS
+[New Year] 2074-01-01 <-> 2017-04-14 (MoHA / Panchanga 2074): PASS
+[New Year] 2075-01-01 <-> 2018-04-14 (MoHA / Panchanga 2075): PASS
+[New Year] 2076-01-01 <-> 2019-04-14 (MoHA / Panchanga 2076): PASS
+[New Year] 2077-01-01 <-> 2020-04-13 (MoHA / Panchanga 2077): PASS
+[New Year] 2078-01-01 <-> 2021-04-14 (MoHA / Panchanga 2078): PASS
+[New Year] 2079-01-01 <-> 2022-04-14 (MoHA / Panchanga 2079): PASS
+[New Year] 2080-01-01 <-> 2023-04-14 (MoHA / Panchanga 2080): PASS
+[New Year] 2081-01-01 <-> 2024-04-13 (MoHA / Panchanga 2081): PASS
+[New Year] 2082-01-01 <-> 2025-04-14 (MoHA / Panchanga 2082): PASS
+[New Year] 2083-01-01 <-> 2026-04-14 (MoHA / Panchanga 2083 (Current Year)): PASS
+Subtotal A1 (Official New Years): 14/14 passed.
+
+Subtotal A2 (Month 1st Boundaries for BS 2070-2083): 168/168 passed.
+
+================================================================================
+SUITE B: PROVISIONAL YEARS (BS 2084 - BS 2090) VERIFICATION & CONSISTENCY
+================================================================================
+[Provisional] Baisakh 1, 2084 (New Year)    : 2027-04-14 <-> 2084-01-01 | PASS
+[Provisional] Jestha 1, 2084                : 2027-05-15 <-> 2084-02-01 | PASS
+[Provisional] Ashadh 1, 2084                : 2027-06-15 <-> 2084-03-01 | PASS
+[Provisional] Shrawan 1, 2084               : 2027-07-17 <-> 2084-04-01 | PASS
+[Provisional] Bhadra 1, 2084                : 2027-08-17 <-> 2084-05-01 | PASS
+[Provisional] Ashwin 1, 2084                : 2027-09-17 <-> 2084-06-01 | PASS
+[Provisional] Ashwin 29, 2084 (Goal 2 Target): 2027-10-15 <-> 2084-06-29 | PASS
+[Provisional] Baisakh 17, 2084 (Goal 1 Target): 2027-04-30 <-> 2084-01-17 | PASS
+[Provisional] End of Chaitra 2084           : 2028-04-12 <-> 2084-12-30 | PASS
+[Provisional] Baisakh 1, 2085 (New Year)    : 2028-04-13 <-> 2085-01-01 | PASS
+[Provisional] Baisakh 1, 2086 (New Year)    : 2029-04-14 <-> 2086-01-01 | PASS
+[Provisional] Baisakh 1, 2087 (New Year)    : 2030-04-14 <-> 2087-01-01 | PASS
+[Provisional] Baisakh 1, 2088 (New Year)    : 2031-04-15 <-> 2088-01-01 | PASS
+[Provisional] Baisakh 1, 2089 (New Year)    : 2032-04-14 <-> 2089-01-01 | PASS
+[Provisional] Baisakh 1, 2090 (New Year)    : 2033-04-14 <-> 2090-01-01 | PASS
+Subtotal B (Provisional Estimates): 15/15 passed.
+
+================================================================================
+SUITE C: DEMO DATA RECONCILIATION & BOUNDARY TESTS
+================================================================================
+[Demo Ledger] tx_demo_01 (Salary)      : 2026-10-01 AD <-> 2083-06-15 BS: PASS
+[Demo Ledger] tx_demo_03 (Rent)        : 2026-10-02 AD <-> 2083-06-16 BS: PASS
+[Demo Ledger] tx_demo_04 (Groceries 1) : 2026-10-04 AD <-> 2083-06-18 BS: PASS
+[Demo Ledger] tx_demo_05 (Utilities 1) : 2026-10-08 AD <-> 2083-06-22 BS: PASS
+[Demo Ledger] tx_demo_06 (Lunch)       : 2026-10-10 AD <-> 2083-06-24 BS: PASS
+[Demo Ledger] tx_demo_07 (Internet)    : 2026-10-14 AD <-> 2083-06-28 BS: PASS
+[Demo Ledger] tx_demo_02 (Freelance)   : 2026-10-15 AD <-> 2083-06-29 BS: PASS
+[Demo Ledger] tx_demo_08 (Fuel)        : 2026-10-18 AD <-> 2083-07-01 BS: PASS
+[Demo Ledger] tx_demo_09 (Groceries 2) : 2026-10-20 AD <-> 2083-07-03 BS: PASS
+[Demo Ledger] tx_demo_10 (Dinner)      : 2026-10-22 AD <-> 2083-07-05 BS: PASS
+[Demo Ledger] tx_demo_11 (Health)      : 2026-10-25 AD <-> 2083-07-08 BS: PASS
+[Demo Ledger] tx_demo_12 (Recharge)    : 2026-10-27 AD <-> 2083-07-10 BS: PASS
+[Demo Ledger] Goal 1 Alloc 1           : 2026-08-05 AD <-> 2083-04-20 BS: PASS
+[Demo Ledger] Goal 1 Alloc 2           : 2026-09-05 AD <-> 2083-05-20 BS: PASS
+Subtotal C1 (Demo Transactions): 14/14 passed.
+
+[Rollover Invariant] Ashwin 31, 2083 (Month End)        : 2083-06-31 <-> 2026-10-17: PASS
+[Rollover Invariant] Kartik 1, 2083 (Month Start)       : 2083-07-01 <-> 2026-10-18: PASS
+[Rollover Invariant] Chaitra 30, 2082 (Year End)        : 2082-12-30 <-> 2026-04-13: PASS
+[Rollover Invariant] Baisakh 1, 2083 (Year Start)       : 2083-01-01 <-> 2026-04-14: PASS
+Subtotal C2 (Rollover Invariants): 4/4 passed.
+
+================================================================================
+SUITE D: INVALID INPUTS & OUT-OF-RANGE BOUNDARY GUARDS
+================================================================================
+[Safety Guard] Pre-2070 AD date (2010-01-01)                : Returned null | PASS
+[Safety Guard] Post-2090 AD date (2035-01-01)               : Returned null | PASS
+[Safety Guard] Pre-2070 BS date (2069-12-30)                : Returned null | PASS
+[Safety Guard] Post-2090 BS date (2091-01-01)               : Returned null | PASS
+[Safety Guard] Invalid BS Month (2083-13-01)                : Returned null | PASS
+[Safety Guard] Day exceeds month length (2083-06-32)        : Returned null | PASS
+[Safety Guard] Day exceeds month length (2083-07-31)        : Returned null | PASS
+[Safety Guard] Invalid Gregorian Leap Day (2023-02-29)      : Returned null | PASS
+[Safety Guard] Invalid String Format ('bad-date')           : Returned null | PASS
+[Safety Guard] Empty String Input                           : Returned null | PASS
+[Safety Guard] Null Input                                   : Returned null | PASS
+Subtotal D (Invalid Inputs & Out-of-Range): 11/11 passed.
+
+================================================================================
+SUITE E: EXHAUSTIVE DAILY BIJECTIVE ROUNDTRIP CONSISTENCY (BS 2070 - BS 2090)
+================================================================================
+Exhaustive Days Tested: 7670 consecutive days (2013-04-14 to 2034-04-13 AD).
+Bijective Failures: 0
+Result: 100% PERFECT BIJECTIVE CONSISTENCY
+
+================================================================================
+FINAL CALENDAR ENGINE VALIDATION SUMMARY
+Suite A (Official Years 2070-2083 Accuracy):  182/182 PASS
+Suite B (Provisional Years 2084-2090 Checks):  15/15 PASS
+Suite C (Demo Ledger & Rollover Invariants):    18/18 PASS
+Suite D (Invalid Inputs & Range Guards):       11/11 PASS
+Suite E (Exhaustive Daily Bijective Test):     7670/7670 PASS (0 failures)
+================================================================================
+
+
+--- 2. DOMAIN, STORAGE SAFETY & STARTUP MATRIX SUITE (node tests/domain.test.js) ---
+=========================================================
+MeroHisab — Complete Domain & Audit Verification Suite
+=========================================================
+
+[1] Testing Demo Dataset & v2->v3 Migration Invariants...
+  ✓ State migrated to version 3
+  ✓ Default Cash Wallet created on migration
+  ✓ Every legacy transaction assigned to default account
+  ✓ Initial balance is रु 50,000 (got 50000)
+  ✓ Monthly Inflow is रु 1,15,000 (got 115000)
+  ✓ Monthly Outflow is रु 62,550 (got 62550)
+  ✓ Net Cash Flow is रु 52,450 (got 52450)
+  ✓ Estimated Ledger Balance is रु 1,02,450 (got 102450)
+  ✓ Total Earmarked Savings is रु 80,000 (got 80000)
+  ✓ Available to Allocate is रु 22,450 (got 22450)
+
+[2] Testing Budget Threshold Calculations...
+  ✓ 5 budgets configured for 2026-10 (got 5)
+  ✓ Housing & Rent budget is Exceeded (100% utilized)
+  ✓ Grocery budget is Safe (71% utilized)
+  ✓ Food & Dining budget is Warning (81.7% utilized)
+
+[3] Testing Goal Allocations & Headroom Rules...
+  ✓ 2 savings goals active (got 2)
+  ✓ Total target amount is रु 2,00,000 (got 200000)
+  ✓ Total earmarked savings is रु 80,000 (got 80000)
+  ✓ Allocation exceeding available balance is blocked
+  ✓ Allocation within available balance is allowed
+
+[4] Testing Accounts, Overdraft Enforcement & Multi-Account Opening Dates (Audit 1C & 1D)...
+  ✓ Created eSewa Wallet account with opening date 2026-10-15
+  ✓ Audit 1D: Expense of रु 9,99,999 on account with रु 0 balance & overdraft disabled is REJECTED
+  ✓ Audit 1C: Global Ledger (102450) matches exact sum of account balances (102450) across different opening dates
+  ✓ Valid transfer of रु 5,000 from Cash to eSewa succeeded
+  ✓ Atomic transfer edit updated both legs to रु 6,000
+  ✓ Deleting one leg of a transfer succeeded
+  ✓ Both transfer legs deleted atomically and balances restored
+  ✓ Archived account openingBalance modification is blocked
+
+[5] Testing Recurring Transactions, Day-31 Preservation & Backlog Catch-Up...
+  ✓ Day-31 schedule preserves day across months: Jan 31 -> 2026-02-28 -> 2026-03-31 -> 2026-04-30
+  ✓ Backlog catch-up identified 3 missed occurrences (2026-08-15, 2026-09-15, 2026-10-15)
+  ✓ Confirming recurring occurrence creates transaction and advances nextOccurrence atomically
+
+[6] Testing Bills, Atomic Payment & Status Recalculation (Audit 1E)...
+  ✓ Created recurring bill
+  ✓ Unpaid bill past due date is marked overdue
+  ✓ Paying recurring bill atomically records expense and spawns next month's unpaid bill
+  ✓ Paying an already-paid bill a second time is blocked (idempotent)
+  ✓ Deleting bill-linked expense resets bill link and recalculates overdue status
+
+[7] Testing Corrupted LocalStorage Non-Destructive Recovery (Audit 1A)...
+  ✓ Audit 1A: Malformed LocalStorage JSON triggers recoveryMode instead of loading demo data
+  ✓ Audit 1A: Original corrupted LocalStorage entry is preserved untouched (NOT overwritten with demo data)
+  ✓ Audit 1A: Corrupted payload backed up to MERO_HISAB_CORRUPT_BACKUP
+  ✓ Audit 1A: Mutations are blocked while in recoveryMode to prevent overwriting corrupted storage
+
+[8] Testing Comprehensive v3 Backup Validator...
+  ✓ Valid v3 state passes comprehensive backup validator
+  ✓ Orphaned single-leg transfer is rejected by backup validator
+
+[9] Testing Startup Recovery Matrix (Scenarios A through H)...
+  ✓ Scenario A (Pre-Hydrate): Synchronous init() did NOT overwrite IndexedDB with demo data
+  ✓ Scenario A: Real IndexedDB ledger loaded unchanged when LocalStorage was empty
+  ✓ Scenario B: Real ledger loaded from IndexedDB when LocalStorage is empty
+  ✓ Scenario C: Real LocalStorage data loaded and synchronized into empty IndexedDB
+  ✓ Scenario D: First-run demo data initialized only after both IDB and LS confirmed empty
+  ✓ Scenario E: Corrupted LocalStorage enters explicit recoveryMode, preserves raw LS string, and exposes IDB recoverable state
+  ✓ Scenario F: Authoritative IDB state preserved (not overwritten by newer timestamp on divergent LS) and divergent LS backed up to CONFLICT_BACKUP
+  ✓ Scenario G: When IndexedDB write fails, verified LocalStorage fallback preserves state
+  ✓ Scenario H: Application reload after real-data session preserves all records (रु 88,277)
+
+=========================================================
+✓ ALL 50 DOMAIN, STORAGE SAFETY & AUDIT TESTS PASSED!
+=========================================================
+
+
+--- 3. HEADLESS CHROME INTERACTIVE E2E SUITE (node tests/e2e.test.js) ---
+[TestServer] Server running at http://127.0.0.1:48938
+====================================================
+MeroHisab (मेरो हिसाब) — Integration & E2E Test Suite
+====================================================
+[Chrome] Located browser binary: C:\Program Files\Google\Chrome\Application\chrome.exe
+
+[1/4] Capturing Responsive Screenshots...
+  [Screenshot] Saved desktop_1440px.png (1440x900) [Size: 68465 bytes]
+  [Screenshot] Saved tablet_768px.png (768x1024) [Size: 43164 bytes]
+  [Screenshot] Saved mobile_390px.png (390x844) [Size: 16577 bytes]
+  [Screenshot] Saved desktop_transactions_1440px.png (1440x900) [Size: 66239 bytes]
+  [Screenshot] Saved desktop_budgets_1440px.png (1440x900) [Size: 48703 bytes]
+  [Screenshot] Saved desktop_goals_1440px.png (1440x900) [Size: 44964 bytes]
+  [Screenshot] Saved desktop_analytics_1440px.png (1440x900) [Size: 60742 bytes]
+  [Screenshot] Saved desktop_settings_1440px.png (1440x900) [Size: 42488 bytes]
+  [Screenshot] Saved desktop_accounts_1440px.png (1440x900) [Size: 33827 bytes]
+  [Screenshot] Saved desktop_recurring_1440px.png (1440x900) [Size: 33531 bytes]
+  [Screenshot] Saved desktop_bills_1440px.png (1440x900) [Size: 33170 bytes]
+
+[2/4] Testing Route Rendering Across All 9 Views...
+  ✓ Route #dashboard rendered cleanly.
+  ✓ Route #accounts rendered cleanly.
+  ✓ Route #transactions rendered cleanly.
+  ✓ Route #recurring rendered cleanly.
+  ✓ Route #bills rendered cleanly.
+  ✓ Route #budgets rendered cleanly.
+  ✓ Route #goals rendered cleanly.
+  ✓ Route #analytics rendered cleanly.
+  ✓ Route #settings rendered cleanly.
+
+[3/4] Verifying Dynamic Local Dates & Ledger Math Invariants...
+  Dynamic Current Date: 2026-11-03 AD • 2083-07-17 BS (Kartik 17, 2083 BS)
+  Opening Baseline: 50000
+  Monthly Inflow: 115000
+  Monthly Outflow: 62550
+  Net Cash Flow: 52450
+  Estimated Ledger Balance: 102450
+  Total Earmarked Savings: 80000
+  Available to Allocate: 22450
+  ✓ All financial formulas and invariants confirmed accurate!
+  Analytics October 2026: Inflow: 115000, Outflow: 62550, Savings Rate: 45.6%
+  Categories in breakdown: 7
+  Analytics FY 2083/84: Inflow: 115000, Outflow: 62550
+  ✓ Analytics engine produces accurate monthly & fiscal-year aggregates!
+
+[3.5/4] Running Interactive 12-Step User Journey & Persistence Verification...
+  ✓ Steps 1-10 (Accounts, Income/Expense, Transfer, Recurring Day-31, Bill Payment, Backup & Restore) verified!
+  ✓ Step 11-12 (Reload Storage Persistence & Responsive 1440px/768px/390px Layouts) verified!
+
+[4/4] Checking Headless Chrome Console & Runtime Output...
+  ✓ Zero JavaScript uncaught exceptions or runtime errors found!
+
+====================================================
+✓ ALL E2E & INTEGRATION CHECKS PASSED SUCCESSFULLY!
+====================================================

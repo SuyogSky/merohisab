@@ -1,0 +1,168 @@
+/**
+ * MeroHisab — Responsive Breakpoints & Adaptive Layouts (Audited for 390px Mobile)
+ */
+
+@media (max-width: 1023px) {
+  :root {
+    --sidebar-width: 220px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #view-container {
+    padding: var(--space-6);
+    min-width: 0;
+  }
+
+  #app-header {
+    padding: 0 var(--space-6);
+  }
+}
+
+@media (max-width: 767px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  #app-root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  #app-sidebar {
+    transform: translateX(-100%);
+    width: 260px;
+  }
+
+  #app-sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+
+  #app-main {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding-bottom: calc(var(--mobile-nav-height) + var(--space-6));
+    overflow-x: hidden;
+  }
+
+  #app-header {
+    padding: 0 var(--space-3);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .header-page-title {
+    font-size: var(--font-size-base);
+  }
+
+  .header-subtitle {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+
+  #mobile-nav {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .date-badge {
+    display: none;
+  }
+
+  #view-container {
+    padding: var(--space-3) !important;
+    padding-bottom: calc(var(--mobile-nav-height) + var(--space-8)) !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+  }
+
+  .kpi-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: var(--space-3) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: var(--space-5) !important;
+  }
+
+  .kpi-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: var(--space-4) !important;
+    box-sizing: border-box !important;
+  }
+
+  .kpi-amount {
+    font-size: 1.2rem !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .analytics-charts-grid,
+  .dashboard-grid-2,
+  .dashboard-grid-3,
+  .form-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .content-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .content-card-header {
+    padding: var(--space-3) var(--space-4) !important;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .content-card-body {
+    padding: var(--space-3) var(--space-4) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  #toast-container {
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(var(--mobile-nav-height) + var(--space-3));
+  }
+
+  .toast {
+    min-width: unset;
+    max-width: 100%;
+  }
+}
