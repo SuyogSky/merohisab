@@ -1,326 +1,401 @@
-# MeroHisab (मेरो हिसाब)
+# MeroHisab — Personal Finance Management Application
 
 > **Your Money. Your Goals. Your Control.**  
-> *A simple, smart personal finance dashboard built for everyday life in Nepal.*
+> *A private, local-first personal finance management application designed for everyday life in Nepal.*
+
+[![Unit & Reference Tests](https://img.shields.io/badge/Unit%20%26%20Reference%20Tests-9%2C098%20Passed-10b981.svg)](docs/TESTING.md)
+[![Browser E2E Workflows](https://img.shields.io/badge/Browser%20E2E-33%20Workflows%20Passed-10b981.svg)](docs/TESTING.md)
+[![License: MIT Template](https://img.shields.io/badge/License-MIT%20Template-blue.svg)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/Dependencies-Zero%20(Pure%20Vanilla)-success.svg)](package.json)
 
 ---
 
-## 1. What MeroHisab Is
+## 1. Project Overview
 
-**MeroHisab (मेरो हिसाब)** is a complete, polished, modern personal finance web application specifically tailored for individuals living and working in Nepal. It enables users to record income and expenses, maintain category budgets, set earmarked savings goals, analyze cash flow trends across calendar periods, and view their estimated liquid balance.
+**MeroHisab (मेरो हिसाब)** is a lightweight, local-first personal finance management web application designed to help individuals record, track, and analyze their personal financial life in Nepal.
 
-MeroHisab is a **100% frontend-only application**. It operates entirely within the user's web browser without requiring a backend server, cloud database, account creation, or paid third-party APIs. All data remains private and local to the user's browser.
+Built entirely with standard native web technologies, MeroHisab operates **100% inside the user's web browser**. It requires no server infrastructure, no remote database, no user accounts or passwords, and no third-party API subscriptions. All financial records, account balances, budgets, savings milestones, and recurring schedules remain completely private on the user's device.
+
+### Major Capabilities
+
+- **Multi-Account & Wallet Ledger**: Track liquid balances separately across Cash, Bank accounts, eSewa, Khalti, and custom digital wallets.
+- **Atomic Account-to-Account Transfers**: Move funds between wallets (e.g. Bank ATM cash withdrawal or Bank-to-eSewa top-up) with paired transfer legs that update balances while remaining neutral to income and expenses.
+- **Dual Calendar Support (AD & BS)**: Native, astronomical Bikram Sambat (BS) calendar engine with bidirectional conversion to Gregorian (AD) dates.
+- **Category Budgets with Visual Alerts**: Set monthly spending limits per category with three-tier visual feedback (Safe, Warning, Exceeded).
+- **Savings Goals & Headroom Protection**: Allocate money toward savings targets using an earmarked reserve model that prevents double-deductions from the balance while strictly guarding liquid headroom.
+- **Recurring Transactions & Bills**: Schedule repeating income and expense transactions with calendar day-of-month preservation, and track recurring bills with one-click payment linking.
+- **Financial Analytics & Nepal Fiscal Year Reporting**: Interactive Canvas charts for monthly trends, category spending distribution, net cash flow, and Nepal Fiscal Year (Shrawan–Ashadh) aggregations.
+- **Complete Data Portability**: Export transactions to RFC-compliant CSV with UTF-8 BOM, and create complete JSON backup snapshots with schema validation and one-click restoration.
+- **Progressive Web App (PWA)**: Offline-first navigation and caching via Service Worker.
 
 ---
 
-## 2. Main Features
+## 2. Verified Application Features
 
-- **Accounts & Wallets (v3)**:
-  - Track balances separately across multiple accounts: Cash, Bank, eSewa, Khalti, and custom wallets.
-  - Default "Cash Wallet" account created on first launch. Full CRUD with opening balance and account type.
-  - Per-account balance calculated dynamically as `openingBalance + income − expenses + inbound transfers − outbound transfers`.
+All documented features are verified in the actual codebase:
 
-- **Account-to-Account Transfers (v3)**:
-  - Move funds between any two accounts atomically (e.g., Bank → eSewa, Bank → Cash ATM withdrawal).
-  - Transfers are analytics-neutral: they create a linked pair of `type: "transfer"` legs (`in`/`out`) with a shared `transferId`. Net effect on global ledger balance is zero.
-  - Overdraft protection: blocks source-account transfers when balance would go negative (unless `overdraftEnabled` is set).
+### Income & Expense Tracking
+- Record income and expense entries with amount, category, description, payment channel, account, and synchronized AD/BS dates.
+- Live South Asian number grouping with Nepali Rupee formatting (`रु 1,02,450.00`) and real-time Lakh/Paisa text preview while typing amounts.
+- Multi-dimensional search and filtering (Type, Category, Payment Method, Date Range).
 
-- **Recurring Transactions (v3)**:
-  - Define `daily`, `weekly`, `monthly`, and `yearly` recurring income/expense rules.
-  - Day-of-month preservation: scheduling `Jan 31` monthly always advances to the last day of shorter months (`Feb 28`, `Mar 31`, etc.) without overwriting the original `dayOfMonth`.
-  - Pause/resume, skip individual occurrences, or process a due occurrence to stamp a real transaction.
+### Accounts & Balance Management
+- Manage Cash, Bank, eSewa, Khalti, and custom wallets.
+- Per-account balances calculated dynamically as:
+  $$\text{Balance} = \text{Opening Balance} + \text{Inflow} - \text{Outflow} + \text{Inbound Transfers} - \text{Outbound Transfers}$$
+- Per-account overdraft protection toggles.
 
-- **Bills & Payment Tracking (v3)**:
-  - Track recurring bills (electricity, rent, internet) with due dates, amounts, and accounts.
-  - Status computed automatically: `overdue` (past due), `dueSoon` (within 7 days), `upcoming`.
-  - Pay a bill with one click — creates a real linked expense transaction (idempotent, prevents duplicate payment).
+### Account-to-Account Transfers
+- Move funds between accounts atomically using two linked legs (`out`/`in`) sharing a unique `transferId`.
+- Transfers update account balances but are strictly excluded from income, expense, and budget calculations.
 
-- **Estimated Ledger Balance & Cash Flow**:
-  - Distinguishes between net cash flow and account balance using an opening balance baseline (`initialBalance`) and effective date (`initialBalanceDate`).
-  - Estimated Ledger Balance formula: $\text{Opening Balance} + \text{Active Income} - \text{Active Expenses}$ (for transactions where $\text{Date} \ge \text{Baseline Date}$).
-  - Live South Asian number grouping with Nepali Rupee formatting (`रु 1,02,450.00`).
+### Monthly Budget Planning
+- Configure category limits for any month (`YYYY-MM`).
+- Prevents duplicate `(period, category)` combinations.
+- Real-time utilization meters:
+  - **Safe (`< 75%`)**: Emerald green meter.
+  - **Warning (`75% – 99.99%`)**: Amber warning with overspending alert.
+  - **Exceeded (`100%+`)**: Crimson alert indicating budget deficit.
 
-- **Transactions Management (Full CRUD)**:
-  - Record income and expense entries with amount, category, description, payment method, account, and synchronized AD/BS dates.
-  - Transfer rows rendered distinctly with peer account and direction.
-  - Live Lakh & Paisa preview while entering transaction amounts.
-  - Real-time search and multi-criteria filtering (Type, Category, Payment Channel, Date Range).
-  - One-click CSV export with UTF-8 BOM for Microsoft Excel compatibility (includes Account and Transfer columns).
+### Savings Goals & Headroom Conservation
+- Create financial targets with target amounts, target dates (AD/BS), and categories.
+- **Earmarked Reserve Model**: Depositing money into a savings goal earmarks funds without counting as an expense or reducing the global ledger balance twice.
+- **Headroom Protection**: Allocations are strictly limited to unallocated liquid funds:
+  $$\text{Available to Allocate} = \text{Estimated Ledger Balance} - \text{Total Earmarked Savings}$$
 
-- **Monthly Budget Allocations & 3-Tier Thresholds**:
-  - Create and manage monthly category budgets (`YYYY-MM`).
-  - Enforces unique `(period, category)` combinations to prevent duplicate budgets.
-  - Strict visual threshold feedback:
-    - **Safe (`< 75%`)**: Emerald green progress meter.
-    - **Approaching Limit (`75% – 99.99%`)**: Amber warning meter with overspending alert.
-    - **Exceeded (`100%+`)**: Crimson alert meter indicating budget deficit.
+### Recurring Transactions & Schedule Engine
+- Define daily, weekly, monthly, and yearly recurring income/expense schedules.
+- **Day-of-Month Preservation**: Scheduling an occurrence on the 31st advances to the last day of shorter months (e.g. Feb 28/29, Apr 30) without permanently losing the 31st anchor.
+- Pause, resume, skip, or process due occurrences into real ledger transactions.
 
-- **Savings Goals & Earmarked Fund Protection**:
-  - Define financial milestones with target amounts, target dates (AD & BS), and categories.
-  - **Earmarked Fund Model**: Allocations to savings goals earmark money without counting as consumption expenses or double-deducting from ledger balance.
-  - **Headroom Protection**: Allocations validate against $\text{Available to Allocate} = \text{Estimated Ledger Balance} - \text{Total Earmarked Savings}$ and prevent over-allocation.
-  - Deposit history ledger with deletion support that instantly restores unallocated headroom.
+### Bill Management & Payment Tracking
+- Track upcoming, due-soon, and overdue utility and personal bills.
+- One-click bill payment with idempotent linking to a real expense transaction.
 
-- **Analytics & Nepal Fiscal Year Reporting**:
-  - Period filter supporting Monthly views and Nepal Fiscal Year views (Shrawan 1 to Ashadh 31/32, e.g., `FY 2083/84`).
-  - **4 Custom Native Canvas Charts (Zero External Libraries)**:
-    1. Monthly Inflow vs Outflow comparison (Grouped Bar Chart).
-    2. Expense Distribution by Category with center cutout total (Donut Chart).
-    3. Net Cash Flow Trend series with smooth line curve and gradient fill.
-    4. Savings Velocity / Rate Trend series (%).
-  - Category spending analysis table with highest/lowest outflow indicators.
-  - Breakdown across Nepal payment channels (Fonepay QR, eSewa, Khalti, Bank Transfer, Cash).
+### Financial Analytics & Reports
+- Nepal Fiscal Year (Shrawan 1 – Ashadh 31/32) and calendar month filtering.
+- 4 custom HTML5 Canvas charts rendered with Retina/High-DPI scaling:
+  1. Grouped Bar Chart: Monthly Inflow vs Outflow comparison.
+  2. Donut Chart: Expense breakdown by category with center totals.
+  3. Line Chart: Net cash flow trajectory series.
+  4. Line Chart: Savings rate velocity trend.
+- Nepal Payment Channel breakdown (Fonepay QR, eSewa, Khalti, Bank Transfer, Cash).
 
-- **Dashboard Bills & Recurring Reminders**:
-  - Urgent alert banner on Dashboard when bills are overdue or due within 7 days, or recurring transactions are ready to process.
-  - Quick links to `#bills` and `#recurring` views directly from the banner.
+### Nepal Bikram Sambat (BS) Calendar
+- Bidirectional astronomical conversion between Gregorian (AD) and Bikram Sambat (BS) across 21 calendar years (BS 2070 to BS 2090).
+- Standardized to Nepal Standard Time (`Asia/Kathmandu`, UTC+05:45).
 
-- **Settings, Preferences & Data Portability**:
-  - Configure opening balance baseline and effective date.
-  - Customize preferences: Default payment method, currency format (`रु` vs `NPR`), date format (`Both AD & BS`, `AD Primary`, `BS Primary`).
-  - Instant dark mode / light mode toggle (Dark Navy vs Crisp Light).
-  - Export transactions to CSV (includes Account ID and Transfer columns).
-  - Export full v3 state snapshot (accounts, recurring rules, bills included) to plain JSON backup.
-  - Import and validate JSON backup (v2 auto-migrated to v3) with full entity count confirmation before overwrite.
-  - One-click realistic demo data reload and blank ledger reset (v3 state with default Cash Wallet).
+### Data Validation & Integrity Protections
+- BigInt integer Paisa arithmetic eliminating IEEE 754 floating-point drift (`addMoney(0.1, 0.2) === 0.30`).
+- Strict 2-decimal precision enforcement; rejection of 3-decimal values (e.g. `1.234`).
+- Financial safety boundary: `MAX_MONEY_AMOUNT = 999,999,999,999.99` NPR.
+
+### Local-First Data Storage & Portability
+- Authoritative persistence in IndexedDB with synchronous LocalStorage mirror and verified fallback.
+- Read-back SHA-256 state fingerprinting to prevent silent write corruption.
+- Single-transaction atomic revision checking to eliminate multi-tab write races.
+- Plain JSON backup export and schema-validated restore with entity-count confirmation.
+- RFC-compliant CSV export with UTF-8 Byte Order Mark (BOM) for Microsoft Excel compatibility.
 
 ---
 
 ## 3. Technology Stack
 
-MeroHisab is built strictly adhering to zero-dependency native web standards:
+MeroHisab is built strictly adhering to standard web standards with **zero runtime external dependencies**:
 
-- **HTML5**: Semantic elements (`<header>`, `<aside>`, `<main>`, `<nav>`, `<section>`).
-- **CSS3**: CSS Custom Properties (Design Tokens), Flexbox, CSS Grid, media queries, high-contrast accessible states.
-- **Vanilla JavaScript (ES6+)**: ES Modules (`import`/`export`), `class`, async/await, closures.
-- **HTML5 Canvas API**: Native custom charting engine with Retina / High-DPI scaling (`window.devicePixelRatio`).
-- **Web Storage API**: `window.localStorage` with defensive error handling and in-memory fallback. **IndexedDB** (`js/utils/indexed-db.js`) used as optional secondary persistence layer with automatic migration from v2 to v3 schema.
-  - **Migration Safety**: `migrateV2toV3()` upgrades any v2 stored state transparently on load — adding `accounts`, `recurringRules`, and `bills` arrays, and creating a default "Cash Wallet" account.
-  - **v3 Schema**: `version: 3` state includes `accounts[]`, `transactions[]`, `budgets[]`, `goals[]`, `recurringRules[]`, and `bills[]`.
-- **Intl API**: Currency and localized date formatting.
-- **File & Blob APIs**: In-browser CSV and JSON generation, client-side file reading with `FileReader`.
+| Technology | Purpose in MeroHisab |
+| :--- | :--- |
+| **HTML5** | Semantic application layout (`<header>`, `<aside>`, `<main>`, `<nav>`, `<section>`). |
+| **CSS3** | Modern CSS Custom Properties (Design Tokens), Flexbox, CSS Grid, media queries, high-contrast dark/light theme switching. |
+| **Vanilla JavaScript (ES6+)** | Native ES Modules (`import`/`export`), class structures, asynchronous pipelines (`async`/`await`), state subscriptions. |
+| **IndexedDB API** | Authoritative primary client database (`MeroHisabDB`, store: `app_state`). |
+| **LocalStorage API** | Secondary mirror and verified offline fallback storage (`MERO_HISAB_STATE_V3`). |
+| **HTML5 Canvas API** | Zero-dependency high-DPI custom charting engine (`window.devicePixelRatio`). |
+| **Progressive Web App (PWA)** | Service Worker (`sw.js`) and Web App Manifest (`manifest.json`) for full offline navigation. |
+| **Node.js (Built-in)** | Native assertion test runner (`tests/calendar.test.js`, `tests/domain.test.js`, `tests/financial-reference.test.js`). |
+| **Chrome DevTools Protocol (CDP)** | Real headless Chrome browser automation for end-to-end integration workflows (`tests/e2e.test.js`). |
 
-**Strict Negative Constraints Met**: Zero React, Vue, Angular, TypeScript, Node.js backend services, Bootstrap, Tailwind, jQuery, or third-party charting libraries (Chart.js, etc.).
+> **Strict Architectural Boundary**: The application contains no React, Vue, Angular, TypeScript, Node.js backend services, Express, Bootstrap, Tailwind, jQuery, or third-party charting libraries (such as Chart.js).
 
 ---
 
-## 4. Project Folder Structure
+## 4. Architecture & Data Storage Model
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        User Web Browser Runtime                        │
+│                                                                        │
+│   ┌─────────────────┐       dispatch()        ┌────────────────────┐   │
+│   │ UI Views & DOM  │ ──────────────────────> │ State Manager      │   │
+│   │ (Dashboard, Tx, │                         │ (js/core/state.js) │   │
+│   │  Accounts, etc) │ <────────────────────── │ (In-Memory Model)  │   │
+│   └─────────────────┘       notify()          └────────────────────┘   │
+│                                                          │             │
+│                                                 enqueueAuthoritative   │
+│                                                 Write()                │
+│                                                          ▼             │
+│                                               ┌────────────────────┐   │
+│                                               │ Persistence Engine │   │
+│                                               │ (migrate-to-idb)   │   │
+│                                               └────────────────────┘   │
+│                                                          │             │
+│                                     ┌────────────────────┴───────────┐ │
+│                                     │ Primary                        │ │
+│                                     ▼                                ▼ │
+│                          ┌────────────────────┐   Mirror   ┌─────────┐ │
+│                          │ IndexedDB          │ ---------> │ Local   │ │
+│                          │ (Authoritative)    │  Fallback  │ Storage │ │
+│                          └────────────────────┘            └─────────┘ │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Storage Architecture Details
+
+1. **IndexedDB Authoritative Primary Store**:
+   All state mutations are committed to IndexedDB (`MeroHisabDB`) first. Before committing, an atomic revision check verifies that no concurrent tab has advanced the revision. After writing, the state is read back and verified via content fingerprinting.
+2. **LocalStorage Secondary Mirror & Verified Fallback**:
+   A secondary copy is written to LocalStorage. If LocalStorage exceeds its browser quota or fails while IndexedDB succeeds, the mutation is still reported as successful. If IndexedDB is blocked or unavailable, verified LocalStorage acts as an emergency fallback.
+3. **Zero In-Memory False Positives**:
+   If both persistent stores fail or are unavailable, writes fail loudly. Volatile in-memory state is never reported as a durable save.
+4. **Local-First Sandbox & Privacy**:
+   All data lives exclusively inside the local browser storage partition.
+5. **Backup Responsibility**:
+   Because there is no remote cloud server, **users are responsible for exporting and preserving external backups**. Clearing browser site data, running private/incognito sessions, or device failure will permanently erase local browser storage if external backups have not been created.
+
+---
+
+## 5. Project Directory Structure
 
 ```text
 MeroHisab/
 │
-├── index.html                   # Semantic SPA Shell & View Container
-├── README.md                    # Comprehensive Project Documentation
-├── PROJECT_PROGRESS.md          # Implementation Progress & Invariant Log
-│
 ├── assets/
-│   ├── icons/
-│   │   └── favicon.svg          # Emerald Vector Favicon
-│   └── images/                  # Static assets and icons
+│   └── icons/
+│       └── favicon.svg          # Emerald Vector Favicon
 │
 ├── css/
 │   ├── main.css                 # Master CSS Orchestrator
 │   ├── variables.css            # Color Tokens, Typography, Spacing & Themes
-│   ├── reset.css                # CSS Reset & Box-Sizing Normalization
-│   ├── layout.css               # Shell Architecture, Sidebar & Header
-│   ├── components.css           # Cards, Badges, Buttons, Modals, Tables, Toasts
-│   └── responsive.css           # Desktop (>=1024px), Tablet (768-1023px), Mobile (<768px)
+│   ├── reset.css                # CSS Reset & Normalization
+│   ├── layout.css               # App Shell, Desktop Sidebar, Mobile Drawer & Header
+│   ├── components.css           # Cards, Modals, Badges, Buttons, Toasts, Welcome Banner
+│   └── responsive.css           # Viewport Breakpoints (Desktop >=1024px, Tablet 768px, Mobile <768px)
 │
 ├── js/
-│   ├── app.js                   # Main Application Bootstrap
+│   ├── app.js                   # Application Bootstrap & Initialization
 │   │
 │   ├── core/
-│   │   ├── constants.js         # Categories, Payment Channels, Thresholds, Defaults
-│   │   ├── demo-data.js         # Verified, Mathematically Reconciled Nepal Demo Dataset
-│   │   ├── state.js             # v3 State Manager: Accounts, Transfers, Recurring, Bills, Dispatch
-│   │   ├── storage.js           # LocalStorage Wrapper with In-Memory Fallback
-│   │   └── validator.js         # Schema Validation for v3: Accounts, Transfers, Recurring, Bills, Backups
+│   │   ├── constants.js         # Categories, Payment Channels, Defaults
+│   │   ├── demo-data.js         # Mathematically Reconciled Nepal Demo Dataset
+│   │   ├── migrate-to-idb.js    # Multi-Layer Storage Reconciliation & Fingerprinting
+│   │   ├── state.js             # Central State Machine & Dispatch Controller
+│   │   ├── storage.js           # LocalStorage Adapter with Fallback
+│   │   └── validator.js         # v3 Entity, Transfer, Recurring, Bill & Backup Validators
 │   │
 │   ├── services/
-│   │   ├── transactions.js      # Financial Summary Engine & Ledger Math Invariants
-│   │   ├── budgets.js           # Budget Utilization & Threshold Analyzer
-│   │   ├── goals.js             # Goal Progress & Allocation Headroom Analyzer
-│   │   ├── analytics.js         # Fiscal Year & Monthly Aggregations
-│   │   └── insights.js          # Rule-Based Heuristic Financial Insights
+│   │   ├── analytics.js         # Monthly & Nepal Fiscal Year Aggregations
+│   │   ├── budgets.js           # Category Budget Utilization Analyzer
+│   │   ├── goals.js             # Savings Milestones & Headroom Protection
+│   │   ├── insights.js          # Heuristic Financial Pattern Analyzer
+│   │   └── transactions.js      # Ledger Balance Math & Transaction Queries
 │   │
 │   ├── utils/
-│   │   ├── canvas-charts.js     # High-DPI Canvas Charts (Grouped Bar, Donut, Line/Trend)
-│   │   ├── file-io.js           # RFC-Compliant CSV Export (v3 columns) & JSON Backup Engine
-│   │   ├── formatters.js        # South Asian Digit Grouping (Lakhs/Crores) & NPR Formatting
-│   │   ├── indexed-db.js        # IndexedDB Persistence Layer with LocalStorage Fallback
-│   │   └── nepali-calendar.js   # Astronomical Bikram Sambat (BS) & Gregorian (AD) Converter
+│   │   ├── canvas-charts.js     # Custom High-DPI Canvas Chart Engine
+│   │   ├── file-io.js           # RFC-Compliant CSV & Strict JSON Backup Serialization
+│   │   ├── formatters.js        # South Asian Lakh/Paisa & NPR Currency Formatters
+│   │   ├── indexed-db.js        # Authoritative IndexedDB Adapter with Concurrency Control
+│   │   ├── money.js             # Exact BigInt Integer Paisa Monetary Arithmetic
+│   │   ├── nepali-calendar.js   # Astronomical Bikram Sambat (BS) & Gregorian (AD) Converter
+│   │   └── storage-persistence.js # Storage Sync Coordination
 │   │
 │   ├── components/
-│   │   ├── confirm-dialog.js    # Accessible Modal Confirmation Prompts
-│   │   ├── modal.js             # Dialog Controller with Keyboard Traps & Escape Key Support
-│   │   ├── navigation.js        # Client-Side Hash Routing (9 routes) & Dynamic Header Date Badge
-│   │   └── toast.js             # Non-Blocking Toast Notification Alerts
+│   │   ├── confirm-dialog.js    # Accessible Modal Confirmation Dialogs
+│   │   ├── modal.js             # Dialog Traps & Modal Lifecycle Controller
+│   │   ├── navigation.js        # Client-Side Hash Routing & Dynamic Header Date Badges
+│   │   └── toast.js             # Toast Alert Notifications
 │   │
 │   └── views/
-│       ├── accounts.js          # Accounts & Wallets Management (Add/Edit/Delete/Transfer)
-│       ├── bills.js             # Bills & Due Payment Tracking (Pay, Status, Reminders)
-│       ├── dashboard.js         # Overview Dashboard with KPI Cards, Charts & Reminders Banner
-│       ├── transactions.js      # Transaction Ledger (Income, Expense, Transfer rows)
+│       ├── accounts.js          # Accounts & Wallets View (CRUD & Transfers)
+│       ├── analytics.js         # Financial Reports, Canvas Series & Payment Breakdown
+│       ├── bills.js             # Bills Management & Idempotent Payment Flow
 │       ├── budgets.js           # Monthly Budget Management with Utilization Meters
-│       ├── goals.js             # Savings Goals with Allocation Modals & Headroom Checks
-│       ├── recurring.js         # Recurring Rules (Create/Edit/Pause/Skip/Process)
-│       ├── analytics.js         # Analytics Reports, Canvas Series & Payment Channel Breakdown
-│       └── settings.js          # Ledger Baseline, Preferences & v3 JSON/CSV Portability
+│       ├── dashboard.js         # Overview Dashboard, KPI Cards & Welcome Banner
+│       ├── goals.js             # Savings Goals & Earmarked Deposit Allocations
+│       ├── recurring.js         # Recurring Rules Management (Pause, Skip, Process)
+│       ├── settings.js          # Preferences, Profile Name, Baseline & Data Portability
+│       └── transactions.js      # Transaction Ledger with Search, Filters & Export
 │
-├── screenshots/                 # Responsive High-Resolution Application Screenshots
-│   ├── desktop_1440px.png       # Desktop Dashboard (1440x900)
-│   ├── tablet_768px.png         # Tablet Dashboard (768x1024)
-│   ├── mobile_390px.png         # Mobile Dashboard (390x844)
-│   ├── desktop_accounts_1440px.png
-│   ├── desktop_transactions_1440px.png
-│   ├── desktop_recurring_1440px.png
-│   ├── desktop_bills_1440px.png
-│   ├── desktop_budgets_1440px.png
-│   ├── desktop_goals_1440px.png
-│   ├── desktop_analytics_1440px.png
-│   └── desktop_settings_1440px.png
+├── docs/
+│   ├── screenshots/             # Application UI Screenshots for Documentation
+│   └── TESTING.md               # Detailed Test Architecture & Verification Guide
 │
-└── tests/                       # Automated Test Suites & Verification Fixtures
-    ├── calendar.test.js         # Astronomical BS 2070-2090 Calendar Verification Suite
-    ├── domain.test.js           # v3 Math Invariants, Transfers, Recurring, Bills & Schema Validation
-    └── e2e.test.js              # Headless Chrome Integration Test: 9 routes + Screenshot Runner
+├── screenshots/                 # High-Resolution Automated Viewport Captures
+├── tests/
+│   ├── calendar.test.js         # BS 2070–2090 Calendar Verification Suite
+│   ├── domain.test.js           # Invariants, Transfers, Recurring, Bills, Audits 1–29
+│   ├── financial-reference.test.js # Seeded Multi-Event Reference Engine Verification
+│   └── e2e.test.js              # Headless Chrome DevTools Protocol Real-Browser E2E Suite
+│
+├── .gitignore                   # Repository Ignore Configuration
+├── CONTRIBUTING.md              # Guidelines for Contributors
+├── LICENSE                      # MIT Open-Source License Template
+├── manifest.json                # PWA Web App Manifest
+├── package.json                 # Project Metadata & Test Execution Scripts
+├── README.md                    # Root Documentation
+├── SECURITY.md                  # Responsible Vulnerability Disclosure Policy
+└── sw.js                        # PWA Service Worker for Offline Navigation
 ```
 
 ---
 
-## 5. How to Run the Application Locally
+## 6. Installation & Local Development
 
-Because MeroHisab uses standard native ES6 JavaScript Modules (`import` / `export`), modern web browsers enforce CORS security policies that require the application to be served via an HTTP/HTTPS protocol rather than opened directly as a `file://` URL.
+### Prerequisites
 
-You can serve the directory using any standard lightweight local HTTP server:
+- Any modern web browser (Chrome, Firefox, Safari, Edge).
+- **Node.js** (v18.0.0 or higher recommended, required for running tests).
+- **Google Chrome** (required only if running the real-browser E2E suite via CDP).
 
-### Option A: Using Python (Pre-installed on macOS/Linux/Windows)
+### Running Locally
+
+Because MeroHisab uses standard ES6 modules (`import`/`export`), opening `index.html` directly via the `file://` protocol will be blocked by browser CORS security policies. The project must be served via a local HTTP server.
+
 ```bash
-# Navigate to the project directory
-cd MeroHisab
+# 1. Clone the repository
+git clone https://github.com/<your-username>/merohisab.git
+cd merohisab
 
-# Start static server
+# 2. Start a static HTTP server
+# Option A: Using npx (Node.js)
+npx serve .
+
+# Option B: Using Python 3
 python -m http.server 8000
 ```
-Open your browser and navigate to: **`http://localhost:8000`**
 
-### Option B: Using Node.js (`npx serve`)
+Open `http://localhost:8000` (or the URL printed in your terminal) in your browser.
+
+---
+
+## 7. Testing & Verification
+
+MeroHisab includes a comprehensive automated test harness covering dates, financial math, storage persistence, and browser UI workflows.
+
+### Verified Test Results
+
+| Test Suite | Purpose | Reported Result |
+| :--- | :--- | :--- |
+| **Calendar Suite** (`tests/calendar.test.js`) | Astronomical BS 2070–2090 bidirectional date conversions, New Year boundaries, gazetted years, and leap roll-over invariants. | **7,896 passed** |
+| **Domain & Storage Safety Suite** (`tests/domain.test.js`) | Exact integer Paisa math, 2-decimal validation, two-legged transfers, recurring schedules, bill tracking, IndexedDB concurrency, read-back verification, and Audits 1–29. | **1,047 passed** |
+| **Financial Reference Engine** (`tests/financial-reference.test.js`) | Monte-Carlo stress test across 5 deterministic seeds validating balances, cash flows, budgets, and headroom conservation against an independent engine. | **155 passed** |
+| **Total Unit / Reference Checks** | *Combined unit, domain, and financial reference checks* | **9,098 passed checks** |
+| **Real-Browser E2E Workflows** (`tests/e2e.test.js`) | 33 genuine user workflows executed in headless Chrome via Chrome DevTools Protocol (CDP), testing clean first-run initialization, modals, transfers, persistence across reloads, multi-tab concurrency, and PWA offline navigation. | **33 workflows passed** |
+
+### Running the Tests
+
 ```bash
-cd MeroHisab
-npx serve .
+# Run all unit and reference tests (9,098 checks)
+npm run test:unit
+
+# Run independent financial reference engine tests (155 checks)
+npm run test:ref
+
+# Run real-browser E2E workflows (33 workflows via headless Chrome CDP)
+npm run test:e2e
+
+# Run the complete test suite (Unit + E2E)
+npm test
 ```
-Open the URL shown in your terminal (typically `http://localhost:3000`).
 
-### Option C: Using VS Code Live Server Extension
-1. Open the `MeroHisab` folder in Visual Studio Code.
-2. Install the **"Live Server"** extension (by Ritwick Dey).
-3. Right-click `index.html` and select **"Open with Live Server"**.
+> **Testing Scope Disclaimer**: While all 9,098 unit/reference checks and 33 browser workflows pass with zero errors, automated testing cannot guarantee the total absence of all possible bugs or environmental browser incompatibilities.
+
+For in-depth details on the test architecture, consult [docs/TESTING.md](docs/TESTING.md).
 
 ---
 
-## 6. How Persistence Works (LocalStorage + IndexedDB)
+## 8. Application Screenshots
 
-All financial data created or modified in MeroHisab is stored locally in the user's browser:
+The following genuine screenshots demonstrate the live application interface captured via headless Chrome:
 
-- **Primary Storage Key**: `MERO_HISAB_DATA_V3` (LocalStorage)
-- **Secondary Storage**: IndexedDB (`js/utils/indexed-db.js`) — used as a fallback if LocalStorage quota is exceeded.
-- **Theme Storage Key**: `MERO_HISAB_THEME`
+### Clean Personal Ledger Welcome Banner (First Launch)
 
-### Migration & Schema Safety:
-- On load, `migrateV2toV3()` transparently upgrades any v2 persisted state to v3 by adding `accounts[]`, `recurringRules[]`, and `bills[]` arrays and inserting a default "Cash Wallet" account.
-- `clearAllData()` creates a clean v3 state with the default account and all empty arrays ready for a new user.
+| Dark Theme | Light Theme |
+| :---: | :---: |
+| ![Clean Ledger Dark Banner](docs/screenshots/desktop_welcome_dark.png) | ![Clean Ledger Light Banner](docs/screenshots/desktop_welcome_light.png) |
 
-### Architecture & Safety Measures:
-1. **Encapsulated Private State**: The application state is never exposed as a mutable global variable. State reads return immutable defensive deep copies via `getState()`. Mutations are performed exclusively via centralized state methods or action dispatches (`dispatch(action, payload)`).
-2. **Defensive Storage Wrapper ([`storage.js`](file:///c:/Users/Administrator/Desktop/Projects/MeroHisab/js/core/storage.js))**: All storage reads and writes are wrapped in `try...catch` blocks. If `localStorage` is disabled, quota-exceeded, or running in an incognito sandbox that restricts storage, MeroHisab automatically falls back to an in-memory storage dictionary so the application remains functional without crashing.
-3. **Reactive Subscriptions**: When a mutation occurs, the state manager serializes the updated snapshot to `localStorage` and immediately notifies all active subscribers, causing the current view and header indicators to re-render reactively.
+### Dashboard Overview (Dark Theme)
 
----
+![Dashboard Overview](docs/screenshots/desktop_1440px.png)
 
-## 7. How to Export and Import Backups
+### Core Views & Management Interfaces
 
-MeroHisab provides full data portability through the **Settings** view:
+| Accounts & Wallets | Transactions Ledger |
+| :---: | :---: |
+| ![Accounts View](docs/screenshots/desktop_accounts_1440px.png) | ![Transactions View](docs/screenshots/desktop_transactions_1440px.png) |
 
-### Exporting Backups:
-- **Export CSV**: Under *Settings > Backup & Data Portability*, click **"Download CSV File"**. This exports all recorded transactions with headers, transaction types, categories, payment methods, Account ID, Transfer Direction/ID, and dual AD/BS dates. A UTF-8 Byte Order Mark (`\uFEFF`) is prepended to ensure Microsoft Excel correctly displays Nepali characters. Transfer rows are labelled with `TRANSFER` type and include peer account details.
-- **Export JSON Backup (v3)**: Click **"Download JSON Backup"**. This downloads a formatted JSON snapshot containing: `version: 3`, timestamp, user settings, accounts, transactions, monthly budgets, savings goals, recurring rules, and bills.
+| Category Budgets | Savings Goals & Earmarks |
+| :---: | :---: |
+| ![Budgets View](docs/screenshots/desktop_budgets_1440px.png) | ![Goals View](docs/screenshots/desktop_goals_1440px.png) |
 
-### Importing Backups:
-1. Under *Settings > Backup & Data Portability*, click **"Select JSON File..."**.
-2. Select a valid `.json` backup file (v2 or v3 format accepted).
-3. MeroHisab validates the file structure using [`Validator.validateBackupJson`](file:///c:/Users/Administrator/Desktop/Projects/MeroHisab/js/core/validator.js). **v2 files are auto-migrated to v3** on import.
-4. If valid, a confirmation modal displays the exact count of all entity types (Accounts, Transactions, Budgets, Goals, Recurring Rules, Bills) and requests user confirmation before replacing existing data.
-5. Upon confirmation, data is loaded into state and persisted to `localStorage`, and the application re-renders immediately.
+| Recurring Schedules | Bills & Due Tracking |
+| :---: | :---: |
+| ![Recurring View](docs/screenshots/desktop_recurring_1440px.png) | ![Bills View](docs/screenshots/desktop_bills_1440px.png) |
 
----
+| Financial Analytics & Reports | Settings & Data Portability |
+| :---: | :---: |
+| ![Analytics View](docs/screenshots/desktop_analytics_1440px.png) | ![Settings View](docs/screenshots/desktop_settings_1440px.png) |
 
-## 8. Supported AD/BS Calendar Range & Provisional Date Limitations
+### Responsive Mobile & Tablet Layouts
 
-MeroHisab features a custom astronomical Bikram Sambat (BS) calendar engine ([`nepali-calendar.js`](file:///c:/Users/Administrator/Desktop/Projects/MeroHisab/js/utils/nepali-calendar.js)) with bidirectional conversion (`adToBs` and `bsToAd`).
-
-### Supported Range:
-- **BS Range**: Baisakh 1, 2070 BS to Chaitra 30, 2090 BS
-- **AD Range**: April 14, 2013 AD to April 13, 2034 AD
-- **Total Span**: 21 calendar years (7,670 consecutive days)
-
-### Calendar Classification & Provisional Limitations:
-1. **Section A: Officially Published & Gazetted (BS 2070 – BS 2083)**:
-   - Month-length arrays for these years are verified against published gazettes from the **Nepal Calendar Determination Committee (*Nepal Panchanga Nirnayak Bikas Samiti*)** and Ministry of Home Affairs holiday notices.
-   - Month boundaries and New Year transitions in this range are officially confirmed.
-2. **Section B: Provisional Future Estimates (BS 2084 – BS 2090)**:
-   - Because Bikram Sambat is an astronomical solar-sidereal calendar where month transitions correspond to the exact moment the Sun enters a new zodiac sign (*Sankranti*), official month lengths are formally announced year-by-year by the Nepal Panchanga Nirnayak Samiti.
-   - Month lengths for BS 2084 through BS 2090 are calculated using astronomical solar transit models.
-   - **Provisional Notice**: Dates in this range are clearly marked with a `[Provisional Estimate]` notice in the user interface. When the Nepal Government officially gazettes these calendar years in the future, adjustments of $\pm 1$ day to specific month lengths may occur.
+| Tablet View (768px) | Mobile View (390px) |
+| :---: | :---: |
+| ![Tablet View](docs/screenshots/tablet_768px.png) | ![Mobile View](docs/screenshots/mobile_390px.png) |
 
 ---
 
-## 9. Known Boundaries & Limitations
+## 9. Data Safety & Known Limitations
 
-1. **Client-Side Sandbox**: Data is stored exclusively in the browser's `localStorage`. Clearing browser cookies and website data will remove locally stored records unless exported as a JSON backup.
-2. **Estimated Ledger Balance**: The ledger balance is a calculated estimate based on the configured opening baseline and recorded transactions. MeroHisab is not linked to live bank feeds or digital wallet APIs (e.g. Fonepay/eSewa APIs).
-3. **No Automated Multi-Device Sync**: Synchronizing data between multiple devices requires exporting a JSON backup from the primary device and importing it on the secondary device.
-4. **Single Currency Base**: All accounting calculations are standardized to the Nepalese Rupee (NPR / रु). Multi-currency conversion or live foreign exchange rate lookups are not included.
+Please review these important boundaries when using MeroHisab:
 
----
-
-## 10. Deployment Instructions
-
-Because MeroHisab contains no backend, server files, or build steps, it can be deployed directly to static hosting platforms within seconds:
-
-### Deploying to GitHub Pages:
-1. Create a new repository on GitHub (e.g., `merohisab`).
-2. Push the contents of the `MeroHisab` directory to the `main` branch:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit of MeroHisab"
-   git remote add origin https://github.com/<your-username>/merohisab.git
-   git branch -M main
-   git push -u origin main
-   ```
-3. On GitHub, navigate to **Settings > Pages**.
-4. Under **"Build and deployment"**, select **Source: Deploy from a branch**.
-5. Choose branch **`main`** and folder **`/ (root)`**, then click **Save**.
-6. Your application will be live at `https://<your-username>.github.io/merohisab/`.
-
-### Deploying to Netlify:
-- **Method 1 (Drag & Drop)**:
-  1. Log in to [Netlify](https://www.netlify.com/).
-  2. Drag and drop the `MeroHisab` folder directly onto the Netlify Drop zone.
-  3. Your application is instantly deployed with an HTTPS URL.
-- **Method 2 (Git Continuous Deployment)**:
-  1. Connect your GitHub repository to Netlify.
-  2. Leave the "Build command" empty.
-  3. Set "Publish directory" to `.` (root).
-  4. Click **Deploy Site**.
-
+1. **Local-First Client Sandbox**:
+   All financial data is stored directly in your browser's IndexedDB and LocalStorage. **There is no cloud database or remote backup.** If you clear your browser site data, reset your browser profile, or lose your device, your financial records will be permanently lost unless you have exported a JSON backup.
+2. **No Automatic Bank or e-Wallet Synchronization**:
+   MeroHisab does not connect to live banking APIs, SMS parsers, or payment gateways (such as Fonepay, connectIPS, eSewa, or Khalti). All transactions and balance adjustments are recorded manually or generated via local recurring schedules.
+3. **No Multi-Device Automatic Synchronization**:
+   Synchronizing data between multiple devices (e.g. desktop and mobile) requires downloading a JSON backup from the primary device and importing it on the secondary device.
+4. **Single Currency Base**:
+   All calculations are standardized to Nepalese Rupees (NPR / रु). Multi-currency conversion and live foreign exchange rates are not supported.
+5. **Periodic Reconciliation Recommended**:
+   Users should periodically compare their estimated ledger balances and account balances against their actual bank statements, cash counts, and digital wallet balances.
 
 ---
 
-## 11. v3 Finance-Core Capabilities
+## 10. Roadmap & Potential Future Enhancements
 
-- **Multiple Accounts & Wallets (`#accounts`)**: Create, edit, and archive Cash, Bank, eSewa, Khalti, IME Pay, and custom accounts with per-account opening balances and overdraft controls.
-- **Atomic Account-to-Account Transfers**: Move money between wallets with paired transfer legs (`transferId`) that update account balances while remaining 100% neutral to income, expenses, budgets, and savings rate.
-- **Recurring Transactions (`#recurring`)**: Schedule daily, weekly, monthly, and yearly repeating income/expenses with day-of-month preservation (no month-end drift), skip support, pause/resume, and explicit user confirmation before posting.
-- **Bills & Payment Tracking (`#bills`)**: Track upcoming, due-soon, overdue, and paid bills with 1-to-1 idempotent expense linking and automatic recurring bill generation.
-- **Hybrid Persistence & Safe v2→v3 Migration**: Automatic non-destructive upgrade from v2 ledgers with synchronous LocalStorage + durable IndexedDB mirroring.
+The following items are potential future enhancements under consideration:
+
+- [ ] **WebAuthn Biometric Lock**: Optional local PIN or biometric unlock (FaceID/TouchID/Windows Hello) using the Web Authentication API.
+- [ ] **Receipt Image Attachments**: Storing compressed photo attachments of physical bills and payment receipts locally in IndexedDB Blobs.
+- [ ] **Multi-Currency Support**: Secondary currency tracking (e.g. USD, EUR, INR) with user-defined exchange rates.
+- [ ] **Custom Category Icons**: Ability to define custom spending categories and choose user-selected icons.
+- [ ] **Enhanced PDF Statements**: Client-side generation of monthly and annual financial summary PDF statements.
+
+---
+
+## 11. Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup guidelines, coding standards, exact Paisa arithmetic rules, and testing requirements before opening a pull request.
+
+---
+
+## 12. Security Policy
+
+If you discover a security vulnerability or sensitive data handling issue, please review our [SECURITY.md](SECURITY.md) for private reporting instructions.
+
+---
+
+## 13. License
+
+MeroHisab is prepared for open-source release under the **MIT License**.
+
+The root [LICENSE](LICENSE) file provides the standard MIT license terms with a copyright holder placeholder (`[Author / Copyright Holder]`). The repository owner should confirm and insert their preferred copyright-holder name prior to publication.

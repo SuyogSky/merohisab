@@ -10,6 +10,7 @@ import { getAnalyticsData } from "../services/analytics.js";
 import { renderGroupedBarChart, renderDonutChart, renderLineChart } from "../utils/canvas-charts.js";
 import { PAYMENT_METHODS } from "../core/constants.js";
 import { adToBs, getNepalFiscalYear, getCurrentDualDate } from "../utils/nepali-calendar.js";
+import { toPaisaBigInt, fromPaisaBigInt } from "../utils/money.js";
 
 // Keep active period in view state
 let activePeriodType = "month";
@@ -68,22 +69,24 @@ export function renderAnalytics(container, state) {
   // Calculate analytics dataset
   const data = getAnalyticsData(state, activePeriodType, activePeriodValue);
 
-  // Compute Payment Method Breakdown strictly for the selected period
-  const methodTotals = {};
+  // Compute Payment Method Breakdown strictly for the selected period in exact integer Paisa
+  const methodTotalsPaisa = {};
   for (const m of PAYMENT_METHODS) {
-    methodTotals[m.id] = 0;
+    methodTotalsPaisa[m.id] = 0n;
   }
 
   const periodTxs = data.periodTransactions || [];
   for (const t of periodTxs) {
     if (t.type === "expense" && t.paymentMethod) {
-      methodTotals[t.paymentMethod] = (methodTotals[t.paymentMethod] || 0) + t.amount;
+      methodTotalsPaisa[t.paymentMethod] = (methodTotalsPaisa[t.paymentMethod] || 0n) + toPaisaBigInt(t.amount);
     }
   }
 
+  const totalExpPaisa = toPaisaBigInt(data.totalExpenses || 0);
   const paymentBreakdown = PAYMENT_METHODS.map(m => {
-    const amt = methodTotals[m.id] || 0;
-    const pct = data.totalExpenses > 0 ? (amt / data.totalExpenses) * 100 : 0;
+    const amtPaisa = methodTotalsPaisa[m.id] || 0n;
+    const amt = fromPaisaBigInt(amtPaisa);
+    const pct = totalExpPaisa > 0n ? Number((amtPaisa * 10000n) / totalExpPaisa) / 100 : 0;
     return {
       ...m,
       amount: amt,

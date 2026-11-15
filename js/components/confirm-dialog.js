@@ -1,6 +1,7 @@
 /**
  * MeroHisab — Confirmation Dialog Component
  * Replaces bare browser confirm() with an accessible, themed UI modal.
+ * Uses strict textContent for title and message to completely prevent XSS.
  */
 
 let activeDialog = null;
@@ -34,18 +35,28 @@ export function showConfirmDialog(options) {
 
     dialog.innerHTML = `
       <div class="modal-header">
-        <h3 class="modal-title">${options.title || "Confirmation Required"}</h3>
+        <h3 class="modal-title"></h3>
       </div>
       <div class="modal-body">
-        <p style="font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5;">
-          ${options.message}
-        </p>
+        <p class="confirm-message" style="font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5;"></p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary confirm-cancel-btn">${options.cancelLabel || "Cancel"}</button>
-        <button type="button" class="btn ${btnClass} confirm-ok-btn">${options.confirmLabel || "Confirm"}</button>
+        <button type="button" class="btn btn-secondary confirm-cancel-btn"></button>
+        <button type="button" class="btn ${btnClass} confirm-ok-btn"></button>
       </div>
     `;
+
+    const titleEl = dialog.querySelector(".modal-title");
+    if (titleEl) titleEl.textContent = String(options.title || "Confirmation Required");
+
+    const msgEl = dialog.querySelector(".confirm-message");
+    if (msgEl) msgEl.textContent = String(options.message || "");
+
+    const cancelBtn = dialog.querySelector(".confirm-cancel-btn");
+    if (cancelBtn) cancelBtn.textContent = String(options.cancelLabel || "Cancel");
+
+    const okBtn = dialog.querySelector(".confirm-ok-btn");
+    if (okBtn) okBtn.textContent = String(options.confirmLabel || "Confirm");
 
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
@@ -64,13 +75,14 @@ export function showConfirmDialog(options) {
       }, 150);
     };
 
-    dialog.querySelector(".confirm-cancel-btn").addEventListener("click", () => cleanup(false));
-    dialog.querySelector(".confirm-ok-btn").addEventListener("click", () => cleanup(true));
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    okBtn.addEventListener("click", () => cleanup(true));
 
     overlay.addEventListener("click", e => {
       if (e.target === overlay) cleanup(false);
     });
 
-    requestAnimationFrame(() => overlay.classList.add("active"));
+    const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn) => setTimeout(fn, 0);
+    raf(() => overlay.classList.add("active"));
   });
 }

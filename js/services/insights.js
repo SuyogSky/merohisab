@@ -110,12 +110,21 @@ export function generateFinancialInsights(state, period = "2026-10") {
 
   // Fallback if no specific triggers
   if (insights.length === 0) {
-    insights.push({
-      type: "info",
-      icon: "✨",
-      title: "Balanced Finances",
-      message: "Your financial activities are running smoothly this month. Keep maintaining your daily ledger."
-    });
+    if (!state?.isDemoData && (!state?.transactions || state.transactions.length === 0)) {
+      insights.push({
+        type: "info",
+        icon: "🌱",
+        title: "Clean Personal Ledger",
+        message: "Your ledger is ready. Add your accounts or record your first income or expense to begin tracking."
+      });
+    } else {
+      insights.push({
+        type: "info",
+        icon: "✨",
+        title: "Balanced Finances",
+        message: "Your financial activities are running smoothly this month. Keep maintaining your daily ledger."
+      });
+    }
   }
 
   return insights;

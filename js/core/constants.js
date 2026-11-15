@@ -5,7 +5,7 @@ export const APP_METADATA = {
   nepaliName: "मेरो हिसाब",
   tagline: "Your Money. Your Goals. Your Control.",
   description: "A simple, smart personal finance dashboard built for everyday life in Nepal.",
-  version: "2.0.0",
+  version: "3.1.0",
   currencySymbol: "रु",
   currencyCode: "NPR"
 };
@@ -62,6 +62,8 @@ export const BUDGET_THRESHOLDS = {
   EXCEEDED_MIN: 100.00
 };
 
+export const DEFAULT_PROFILE_NAME = "MeroHisab User";
+
 export const DEFAULT_SETTINGS = {
   initialBalance: 50000.00,
   initialBalanceDate: "2026-10-01",
@@ -69,7 +71,12 @@ export const DEFAULT_SETTINGS = {
   currencyFormat: "symbol",
   currencyDisplay: "symbol",
   dateDisplay: "both",
-  theme: "dark"
+  theme: "dark",
+  userName: "MeroHisab User",
+  userRole: "Personal Ledger",
+  profile: {
+    displayName: DEFAULT_PROFILE_NAME
+  }
 };
 
 export const STORAGE_KEYS = {
@@ -77,5 +84,7 @@ export const STORAGE_KEYS = {
   THEME: "MERO_HISAB_THEME",
   CORRUPT_BACKUP: "MERO_HISAB_CORRUPT_BACKUP",
   V2_BACKUP: "MERO_HISAB_V2_BACKUP",
-  CONFLICT_BACKUP: "MERO_HISAB_CONFLICT_BACKUP"
+  CONFLICT_BACKUP: "MERO_HISAB_CONFLICT_BACKUP",
+  CONFLICT_IDB_BACKUP: "MERO_HISAB_CONFLICT_IDB_BACKUP",
+  CONFLICT_LS_BACKUP: "MERO_HISAB_CONFLICT_LS_BACKUP"
 };

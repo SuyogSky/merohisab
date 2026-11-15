@@ -224,16 +224,35 @@ export function getNepalFiscalYear(bsYear, bsMonth) {
 }
 
 /**
- * Get today's calendar date in local time as YYYY-MM-DD
- * Avoids UTC timezone shifts (especially in Nepal UTC+5:45)
+ * Get calendar date in Nepal local time (Asia/Kathmandu, UTC+05:45) as YYYY-MM-DD.
+ * Strictly avoids UTC timezone shifts or OS-local shifts when server/browser is in another timezone.
+ *
+ * @param {Date} [date=new Date()]
  * @returns {string} - "YYYY-MM-DD"
  */
+export function getNepalLocalDateString(date = new Date()) {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kathmandu",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return formatter.format(date);
+  } catch {
+    // Fallback: manual UTC+05:45 calculation
+    const utcMs = date.getTime() + (date.getTimezoneOffset() * 60000);
+    const nepalMs = utcMs + ((5 * 60 + 45) * 60000);
+    const n = new Date(nepalMs);
+    const yyyy = n.getFullYear();
+    const mm = String(n.getMonth() + 1).padStart(2, "0");
+    const dd = String(n.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+}
+
 export function getTodayLocalDateString() {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return getNepalLocalDateString(new Date());
 }
 
 /**

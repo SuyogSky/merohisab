@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="MeroHisab — A simple, smart personal finance dashboard built for everyday life in Nepal. Your Money. Your Goals. Your Control.">
   <meta name="theme-color" content="#080d1a">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self';">
   <title>MeroHisab (मेरो हिसाब) — Personal Finance Dashboard</title>
   
   <!-- Main Design System Stylesheets -->
   <link rel="stylesheet" href="css/main.css">
   <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <div id="app-root">
@@ -128,10 +130,10 @@
       <!-- Sidebar User Profile Footer -->
       <div class="sidebar-footer">
         <div class="sidebar-user">
-          <div class="user-avatar">RS</div>
+          <div class="user-avatar" id="sidebar-user-avatar">MU</div>
           <div class="user-info">
-            <span class="user-name">Ram Shrestha</span>
-            <span class="user-role">Personal Ledger</span>
+            <span class="user-name" id="sidebar-user-name">MeroHisab User</span>
+            <span class="user-role" id="sidebar-user-role">Personal Ledger</span>
           </div>
         </div>
       </div>
@@ -156,6 +158,11 @@
         </div>
 
         <div class="header-right">
+          <!-- Demo Mode Badge -->
+          <div id="demo-mode-badge" class="badge badge-warning" style="display: none; align-items: center; gap: 4px; font-weight: 600; cursor: pointer;" title="Fictional sample dataset active. Click to switch to personal ledger.">
+            <span>⚠️ Demo Mode (Fictional)</span>
+          </div>
+
           <!-- Live Date Badge (AD & BS) -->
           <div class="date-badge">
             <span class="date-badge-dot"></span>

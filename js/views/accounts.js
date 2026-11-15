@@ -2,7 +2,8 @@
  * MeroHisab — Accounts & Wallets Management View (v3)
  */
 import { formatCurrency } from "../utils/formatters.js";
-import { getState, dispatch, calculateAccountBalance } from "../core/state.js";
+import { getState, dispatch, calculateAccountBalance, resolvePrimaryAccount } from "../core/state.js";
+import { toPaisaBigInt, fromPaisaBigInt, isValidMoneyAmount } from "../utils/money.js";
 import { openModal } from "../components/modal.js";
 import { showConfirmDialog } from "../components/confirm-dialog.js";
 import { showToast } from "../components/toast.js";
@@ -20,13 +21,22 @@ const ACCOUNT_TYPES = [
 
 function escapeHtml(str) {
   if (!str) return "";
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 export function renderAccounts(container, state) {
   const accounts = state.accounts || [];
   const activeAccounts = accounts.filter(a => !a.archived);
-  const totalBalance = accounts.reduce((sum, a) => sum + calculateAccountBalance(state, a.id), 0);
+  const totalBalancePaisa = accounts.reduce(
+    (sumPaisa, a) => sumPaisa + toPaisaBigInt(calculateAccountBalance(state, a.id)),
+    0n
+  );
+  const totalBalance = fromPaisaBigInt(totalBalancePaisa);
 
   container.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-6);">
@@ -117,12 +127,12 @@ export function renderAccounts(container, state) {
   });
 
   container.querySelectorAll(".btn-archive-acc").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const acc = state.accounts.find(a => a.id === btn.dataset.id);
       if (!acc) return;
-      const res = dispatch("ARCHIVE_ACCOUNT", { id: acc.id, archive: !acc.archived });
-      if (res.success) showToast(`Account ${!acc.archived ? "archived" : "unarchived"}.`, "info");
-      else showToast(res.error, "error");
+      const res = await dispatch("ARCHIVE_ACCOUNT", { id: acc.id, archive: !acc.archived });
+      if (res && res.success) showToast(`Account ${!acc.archived ? "archived" : "unarchived"}.`, "info");
+      else showToast(res?.error || "Failed to update account.", "error");
     });
   });
 
@@ -137,9 +147,9 @@ export function renderAccounts(container, state) {
         isDestructive: true
       });
       if (confirmed) {
-        const res = dispatch("DELETE_ACCOUNT", { id: acc.id });
-        if (res.success) showToast("Account deleted.", "info");
-        else showToast(res.error, "error");
+        const res = await dispatch("DELETE_ACCOUNT", { id: acc.id });
+        if (res && res.success) showToast("Account deleted.", "info");
+        else showToast(res?.error || "Failed to delete account.", "error");
       }
     });
   });
@@ -184,19 +194,26 @@ export function openAccountModal(existingAcc = null) {
     title: isEditing ? "Edit Account" : "Create New Account",
     contentHtml: formHtml,
     saveLabel: isEditing ? "Save Changes" : "Create Account",
-    onSave: modalBody => {
+    onSave: async modalBody => {
+      const rawBalance = modalBody.querySelector("#acc-balance")?.value;
+      if (!isValidMoneyAmount(rawBalance, true)) {
+        const errEl = modalBody.querySelector("#acc-modal-error");
+        errEl.textContent = "Opening balance must be a valid non-negative amount with at most 2 decimal places.";
+        errEl.style.display = "block";
+        return false;
+      }
       const payload = {
         id: isEditing ? existingAcc.id : undefined,
         name: modalBody.querySelector("#acc-name").value,
         type: modalBody.querySelector("#acc-type").value,
-        openingBalance: Number(modalBody.querySelector("#acc-balance").value),
+        openingBalance: fromPaisaBigInt(toPaisaBigInt(rawBalance)),
         openingBalanceDate: modalBody.querySelector("#acc-date").value,
         overdraftEnabled: modalBody.querySelector("#acc-overdraft").checked
       };
-      const res = dispatch(isEditing ? "UPDATE_ACCOUNT" : "ADD_ACCOUNT", payload);
-      if (!res.success) {
+      const res = await dispatch(isEditing ? "UPDATE_ACCOUNT" : "ADD_ACCOUNT", payload);
+      if (!res || !res.success) {
         const errEl = modalBody.querySelector("#acc-modal-error");
-        errEl.textContent = res.error;
+        errEl.textContent = (res?.errors || [res?.error || "Failed to save account."]).join(" ");
         errEl.style.display = "block";
         return false;
       }
@@ -206,48 +223,57 @@ export function openAccountModal(existingAcc = null) {
   });
 }
 
-export function openTransferModal() {
+export function openTransferModal(existingTransfer = null) {
   const state = getState();
   const activeAccounts = (state.accounts || []).filter(a => !a.archived);
   if (activeAccounts.length < 2) {
     showToast("Create at least 2 active accounts to transfer funds between them.", "warning");
     return;
   }
+  const isEditing = Boolean(existingTransfer && existingTransfer.transferId);
   const today = getTodayLocalDateString();
+  const primaryAcc = resolvePrimaryAccount(activeAccounts);
+  const initialFrom = isEditing ? existingTransfer.fromAccountId : (primaryAcc?.id || activeAccounts[0]?.id);
+  const initialTo = isEditing ? existingTransfer.toAccountId : (activeAccounts.find(a => a.id !== initialFrom)?.id || activeAccounts[1]?.id);
+  const initialAmount = isEditing ? existingTransfer.amount : "";
+  const initialDate = isEditing ? existingTransfer.dateAD : today;
+  const initialDesc = isEditing ? (existingTransfer.description || "") : "";
+  const initialMethod = isEditing ? (existingTransfer.paymentMethod || "bank_transfer") : "bank_transfer";
+
   const formHtml = `
     <form id="transfer-form" onsubmit="return false;">
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">From Account (Source) *</label>
           <select id="tr-from" class="form-select" required>
-            ${activeAccounts.map((a, i) => `<option value="${a.id}" ${i === 0 ? "selected" : ""}>${escapeHtml(a.name)} (${formatCurrency(calculateAccountBalance(state, a.id))})</option>`).join("")}
+            ${activeAccounts.map((a, i) => `<option value="${a.id}" ${a.id === initialFrom ? "selected" : ""}>${escapeHtml(a.name)} (${formatCurrency(calculateAccountBalance(state, a.id))})</option>`).join("")}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">To Account (Destination) *</label>
           <select id="tr-to" class="form-select" required>
-            ${activeAccounts.map((a, i) => `<option value="${a.id}" ${i === 1 ? "selected" : ""}>${escapeHtml(a.name)} (${formatCurrency(calculateAccountBalance(state, a.id))})</option>`).join("")}
+            ${activeAccounts.map((a, i) => `<option value="${a.id}" ${a.id === initialTo ? "selected" : ""}>${escapeHtml(a.name)} (${formatCurrency(calculateAccountBalance(state, a.id))})</option>`).join("")}
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Amount (NPR) *</label>
-          <input type="number" id="tr-amount" class="form-input" min="1" step="0.01" placeholder="e.g. 5000" required />
+          <input type="number" id="tr-amount" class="form-input" min="1" step="0.01" placeholder="e.g. 5000" value="${initialAmount}" required />
         </div>
         <div class="form-group">
           <label class="form-label">Transfer Date (AD) *</label>
-          <input type="date" id="tr-date" class="form-input" value="${today}" required />
+          <input type="date" id="tr-date" class="form-input" value="${initialDate}" required />
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Description / Note</label>
-        <input type="text" id="tr-desc" class="form-input" placeholder="e.g. ATM Withdrawal or eSewa Load" />
+        <input type="text" id="tr-desc" class="form-input" placeholder="e.g. ATM Withdrawal or eSewa Load" value="${escapeHtml(initialDesc)}" />
       </div>
       <div class="form-group">
         <label class="form-label">Channel</label>
         <select id="tr-method" class="form-select">
-          ${PAYMENT_METHODS.map(m => `<option value="${m.id}">${m.label}</option>`).join("")}
+          ${PAYMENT_METHODS.map(m => `<option value="${m.id}" ${m.id === initialMethod ? "selected" : ""}>${m.label}</option>`).join("")}
         </select>
       </div>
       <div id="tr-modal-error" class="form-error" style="display: none;"></div>
@@ -255,11 +281,12 @@ export function openTransferModal() {
   `;
 
   openModal({
-    title: "Transfer Funds Between Wallets",
+    title: isEditing ? "Edit Transfer" : "Transfer Funds Between Wallets",
     contentHtml: formHtml,
-    saveLabel: "Complete Transfer",
-    onSave: modalBody => {
+    saveLabel: isEditing ? "Save Changes" : "Complete Transfer",
+    onSave: async modalBody => {
       const payload = {
+        transferId: isEditing ? existingTransfer.transferId : undefined,
         fromAccountId: modalBody.querySelector("#tr-from").value,
         toAccountId: modalBody.querySelector("#tr-to").value,
         amount: Number(modalBody.querySelector("#tr-amount").value),
@@ -267,14 +294,14 @@ export function openTransferModal() {
         description: modalBody.querySelector("#tr-desc").value,
         paymentMethod: modalBody.querySelector("#tr-method").value
       };
-      const res = dispatch("ADD_TRANSFER", payload);
-      if (!res.success) {
+      const res = await dispatch(isEditing ? "UPDATE_TRANSFER" : "ADD_TRANSFER", payload);
+      if (!res || !res.success) {
         const errEl = modalBody.querySelector("#tr-modal-error");
-        errEl.textContent = res.error;
+        errEl.textContent = (res?.errors || [res?.error || (isEditing ? "Transfer update failed." : "Transfer failed.")]).join(" ");
         errEl.style.display = "block";
         return false;
       }
-      showToast("Transfer completed! Account balances updated.", "success");
+      showToast(isEditing ? "Transfer updated! Account balances updated." : "Transfer completed! Account balances updated.", "success");
       return true;
     }
   });

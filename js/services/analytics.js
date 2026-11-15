@@ -1,10 +1,12 @@
 /**
- * MeroHisab — Analytics & Nepal Fiscal Year Aggregator
- * Generates data for Canvas charts, comparisons, and fiscal-year reporting.
+ * MeroHisab — Analytics & Nepal Fiscal Year Aggregator (Integer Paisa Engine)
+ * Generates exact data for Canvas charts, comparisons, and fiscal-year reporting.
+ * All accumulations, subtractions, and percentages use exact integer Paisa arithmetic.
  */
 
 import { TRANSACTION_TYPES } from "../core/constants.js";
-import { getCategoryLabel, getCategoryColor, getCategoryIcon } from "./transactions.js";
+import { getCategoryLabel, getCategoryColor, getCategoryIcon, isTransactionActiveForAccount } from "./transactions.js";
+import { toPaisaBigInt, fromPaisaBigInt } from "../utils/money.js";
 import { adToBs, getNepalFiscalYear } from "../utils/nepali-calendar.js";
 
 /**
@@ -17,13 +19,14 @@ import { adToBs, getNepalFiscalYear } from "../utils/nepali-calendar.js";
 export function getAnalyticsData(state, periodType = "month", periodValue = "2026-10") {
   const transactions = state.transactions || [];
 
-  // 1. Filter transactions matching period
+  // 1. Filter transactions matching period and active for their account opening date
   let periodTransactions = [];
   let previousTransactions = [];
 
   if (periodType === "fiscal_year") {
     // Group by Nepal Fiscal Year
     periodTransactions = transactions.filter(t => {
+      if (!isTransactionActiveForAccount(state, t)) return false;
       const bs = adToBs(t.dateAD);
       return bs && getNepalFiscalYear(bs.year, bs.month) === periodValue;
     });
@@ -35,60 +38,70 @@ export function getAnalyticsData(state, periodType = "month", periodValue = "202
       const prevYear = startYear - 1;
       const prevFyStr = `FY ${prevYear}/${String(startYear).slice(-2)}`;
       previousTransactions = transactions.filter(t => {
+        if (!isTransactionActiveForAccount(state, t)) return false;
         const bs = adToBs(t.dateAD);
         return bs && getNepalFiscalYear(bs.year, bs.month) === prevFyStr;
       });
     }
   } else {
     // Monthly (YYYY-MM)
-    periodTransactions = transactions.filter(t => t.dateAD.startsWith(periodValue));
+    periodTransactions = transactions.filter(t => t.dateAD.startsWith(periodValue) && isTransactionActiveForAccount(state, t));
 
     // Calculate previous month string for comparison
     const [y, m] = periodValue.split("-").map(Number);
     const prevDate = new Date(Date.UTC(y, m - 2, 1));
     const prevMonthStr = `${prevDate.getUTCFullYear()}-${String(prevDate.getUTCMonth() + 1).padStart(2, "0")}`;
-    previousTransactions = transactions.filter(t => t.dateAD.startsWith(prevMonthStr));
+    previousTransactions = transactions.filter(t => t.dateAD.startsWith(prevMonthStr) && isTransactionActiveForAccount(state, t));
   }
 
-  // 2. Financial totals
-  let totalIncome = 0;
-  let totalExpenses = 0;
+  // 2. Financial totals in exact integer Paisa
+  let totalIncomePaisa = 0n;
+  let totalExpensesPaisa = 0n;
 
   for (const t of periodTransactions) {
     if (t.type === TRANSACTION_TYPES.INCOME) {
-      totalIncome += t.amount;
+      totalIncomePaisa += toPaisaBigInt(t.amount);
     } else if (t.type === TRANSACTION_TYPES.EXPENSE) {
-      totalExpenses += t.amount;
+      totalExpensesPaisa += toPaisaBigInt(t.amount);
     }
   }
 
-  const netCashFlow = totalIncome - totalExpenses;
-  const savingsRate = totalIncome > 0 && netCashFlow > 0 ? (netCashFlow / totalIncome) * 100 : 0;
+  const netCashFlowPaisa = totalIncomePaisa - totalExpensesPaisa;
+  const totalIncome = fromPaisaBigInt(totalIncomePaisa);
+  const totalExpenses = fromPaisaBigInt(totalExpensesPaisa);
+  const netCashFlow = fromPaisaBigInt(netCashFlowPaisa);
 
-  // Previous period totals for comparison
-  let prevTotalExpenses = 0;
-  let prevTotalIncome = 0;
-  for (const t of previousTransactions) {
-    if (t.type === TRANSACTION_TYPES.INCOME) prevTotalIncome += t.amount;
-    if (t.type === TRANSACTION_TYPES.EXPENSE) prevTotalExpenses += t.amount;
+  let savingsRate = 0;
+  if (totalIncomePaisa > 0n && netCashFlowPaisa > 0n) {
+    savingsRate = Number((netCashFlowPaisa * 10000n) / totalIncomePaisa) / 100;
   }
 
-  const expenseChangePct =
-    prevTotalExpenses > 0
-      ? ((totalExpenses - prevTotalExpenses) / prevTotalExpenses) * 100
-      : null;
+  // Previous period totals for comparison in exact integer Paisa
+  let prevTotalExpensesPaisa = 0n;
+  let prevTotalIncomePaisa = 0n;
+  for (const t of previousTransactions) {
+    if (t.type === TRANSACTION_TYPES.INCOME) prevTotalIncomePaisa += toPaisaBigInt(t.amount);
+    if (t.type === TRANSACTION_TYPES.EXPENSE) prevTotalExpensesPaisa += toPaisaBigInt(t.amount);
+  }
 
-  // 3. Category Breakdown (Expenses)
-  const categoryTotals = {};
+  let expenseChangePct = null;
+  if (prevTotalExpensesPaisa > 0n) {
+    const diffPaisa = totalExpensesPaisa - prevTotalExpensesPaisa;
+    expenseChangePct = Number((diffPaisa * 10000n) / prevTotalExpensesPaisa) / 100;
+  }
+
+  // 3. Category Breakdown (Expenses) in exact integer Paisa
+  const categoryTotalsPaisa = {};
   for (const t of periodTransactions) {
     if (t.type === TRANSACTION_TYPES.EXPENSE) {
-      categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+      categoryTotalsPaisa[t.category] = (categoryTotalsPaisa[t.category] || 0n) + toPaisaBigInt(t.amount);
     }
   }
 
-  const categoryBreakdown = Object.entries(categoryTotals)
-    .map(([catId, amount]) => {
-      const percentage = totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0;
+  const categoryBreakdown = Object.entries(categoryTotalsPaisa)
+    .map(([catId, catPaisa]) => {
+      const amount = fromPaisaBigInt(catPaisa);
+      const percentage = totalExpensesPaisa > 0n ? Number((catPaisa * 10000n) / totalExpensesPaisa) / 100 : 0;
       return {
         id: catId,
         label: getCategoryLabel(catId, "expense"),
@@ -104,26 +117,26 @@ export function getAnalyticsData(state, periodType = "month", periodValue = "202
   const lowestExpenseCategory =
     categoryBreakdown.length > 1 ? categoryBreakdown[categoryBreakdown.length - 1] : null;
 
-  // 4. Monthly Trend Series (Last 6 distinct months)
+  // 4. Monthly Trend Series (Last 6 distinct months) in exact integer Paisa
   const allMonths = Array.from(
     new Set(transactions.map(t => t.dateAD.slice(0, 7)))
   ).sort();
 
   const trendMonths = allMonths.slice(-6);
   const monthlyTrends = trendMonths.map(mon => {
-    let inc = 0;
-    let exp = 0;
+    let incPaisa = 0n;
+    let expPaisa = 0n;
     for (const t of transactions) {
-      if (t.dateAD.startsWith(mon)) {
-        if (t.type === TRANSACTION_TYPES.INCOME) inc += t.amount;
-        if (t.type === TRANSACTION_TYPES.EXPENSE) exp += t.amount;
+      if (t.dateAD.startsWith(mon) && isTransactionActiveForAccount(state, t)) {
+        if (t.type === TRANSACTION_TYPES.INCOME) incPaisa += toPaisaBigInt(t.amount);
+        if (t.type === TRANSACTION_TYPES.EXPENSE) expPaisa += toPaisaBigInt(t.amount);
       }
     }
     return {
       month: mon,
-      income: inc,
-      expense: exp,
-      net: inc - exp
+      income: fromPaisaBigInt(incPaisa),
+      expense: fromPaisaBigInt(expPaisa),
+      net: fromPaisaBigInt(incPaisa - expPaisa)
     };
   });
 

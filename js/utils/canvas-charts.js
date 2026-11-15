@@ -45,7 +45,10 @@ export function renderGroupedBarChart(canvas, options) {
       if (v > maxVal) maxVal = v;
     }
   }
-  if (maxVal === 0) maxVal = 10000;
+  if (maxVal === 0) {
+    renderEmptyChart(ctx, width, height, options.emptyMessage || "No transactions recorded for this period.");
+    return;
+  }
   // Round maxVal up to pleasant step
   const magnitude = Math.pow(10, Math.floor(Math.log10(maxVal)));
   maxVal = Math.ceil(maxVal / magnitude) * magnitude;
@@ -209,7 +212,8 @@ export function renderLineChart(canvas, options) {
   }
 
   if (maxVal === 0 && minVal === 0) {
-    maxVal = 100;
+    renderEmptyChart(ctx, width, height, options.emptyMessage || "No trend data recorded for this period.");
+    return;
   }
 
   // Add margin to top and bottom

@@ -1,10 +1,11 @@
 /**
- * MeroHisab — Budget Management Service
- * Calculates category-specific and overall period budget utilization.
+ * MeroHisab — Budget Management Service (Integer Paisa Engine)
+ * Calculates category-specific and overall period budget utilization with exact integer Paisa precision.
  */
 
 import { BUDGET_THRESHOLDS, EXPENSE_CATEGORIES } from "../core/constants.js";
-import { getCategoryLabel, getCategoryIcon, getCategoryColor } from "./transactions.js";
+import { getCategoryLabel, getCategoryIcon, getCategoryColor, isTransactionActiveForAccount } from "./transactions.js";
+import { toPaisaBigInt, fromPaisaBigInt } from "../utils/money.js";
 
 /**
  * Calculate budget utilization and status for a given period
@@ -15,20 +16,23 @@ import { getCategoryLabel, getCategoryIcon, getCategoryColor } from "./transacti
 export function getBudgetAnalysis(state, period) {
   const budgets = (state.budgets || []).filter(b => b.period === period);
   const transactions = (state.transactions || []).filter(
-    t => t.type === "expense" && t.dateAD.startsWith(period)
+    t => t.type === "expense" && t.dateAD.startsWith(period) && isTransactionActiveForAccount(state, t)
   );
 
-  // Group expenses by category
-  const spentByCategory = {};
+  // Group expenses by category in exact integer Paisa
+  const spentByCategoryPaisa = {};
   for (const t of transactions) {
-    spentByCategory[t.category] = (spentByCategory[t.category] || 0) + t.amount;
+    spentByCategoryPaisa[t.category] = (spentByCategoryPaisa[t.category] || 0n) + toPaisaBigInt(t.amount);
   }
 
-  // Calculate stats for each budget
+  // Calculate stats for each budget in exact integer Paisa
   const analyzedBudgets = budgets.map(b => {
-    const spent = spentByCategory[b.category] || 0;
-    const remaining = b.amount - spent;
-    const usagePercentage = b.amount > 0 ? (spent / b.amount) * 100 : 0;
+    const budgetPaisa = toPaisaBigInt(b.amount);
+    const spentPaisa = spentByCategoryPaisa[b.category] || 0n;
+    const remainingPaisa = budgetPaisa - spentPaisa;
+    const spent = fromPaisaBigInt(spentPaisa);
+    const remaining = fromPaisaBigInt(remainingPaisa);
+    const usagePercentage = budgetPaisa > 0n ? Number((spentPaisa * 10000n) / budgetPaisa) / 100 : 0;
 
     let status = "safe";
     let statusLabel = "Safe";
@@ -53,11 +57,15 @@ export function getBudgetAnalysis(state, period) {
     };
   });
 
-  // Calculate overall summary
-  const totalBudgeted = budgets.reduce((sum, b) => sum + b.amount, 0);
-  const totalSpentInBudgeted = analyzedBudgets.reduce((sum, b) => sum + b.spent, 0);
-  const totalRemaining = totalBudgeted - totalSpentInBudgeted;
-  const overallUsagePct = totalBudgeted > 0 ? (totalSpentInBudgeted / totalBudgeted) * 100 : 0;
+  // Calculate overall summary in exact integer Paisa
+  const totalBudgetedPaisa = budgets.reduce((sum, b) => sum + toPaisaBigInt(b.amount), 0n);
+  const totalSpentInBudgetedPaisa = analyzedBudgets.reduce((sum, b) => sum + toPaisaBigInt(b.spent), 0n);
+  const totalRemainingPaisa = totalBudgetedPaisa - totalSpentInBudgetedPaisa;
+
+  const totalBudgeted = fromPaisaBigInt(totalBudgetedPaisa);
+  const totalSpentInBudgeted = fromPaisaBigInt(totalSpentInBudgetedPaisa);
+  const totalRemaining = fromPaisaBigInt(totalRemainingPaisa);
+  const overallUsagePct = totalBudgetedPaisa > 0n ? Number((totalSpentInBudgetedPaisa * 10000n) / totalBudgetedPaisa) / 100 : 0;
 
   let overallStatus = "safe";
   let overallStatusLabel = "Safe";

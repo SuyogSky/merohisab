@@ -277,8 +277,12 @@ function bindGoalEvents(container, state, availableToAllocate) {
       });
 
       if (confirmed) {
-        removeGoalAllocation(goalId, allocId);
-        showToast("Allocation returned to available balance.", "info");
+        const res = await removeGoalAllocation(goalId, allocId);
+        if (res && res.success) {
+          showToast("Allocation returned to available balance.", "info");
+        } else {
+          showToast(res?.error || "Failed to remove allocation.", "error");
+        }
       }
     });
   });
@@ -307,8 +311,12 @@ function bindGoalEvents(container, state, availableToAllocate) {
       });
 
       if (confirmed) {
-        deleteGoal(id);
-        showToast("Goal deleted and funds released.", "info");
+        const res = await deleteGoal(id);
+        if (res && res.success) {
+          showToast("Goal deleted and funds released.", "info");
+        } else {
+          showToast(res?.error || "Failed to delete goal.", "error");
+        }
       }
     });
   });
@@ -393,7 +401,7 @@ export function openGoalModal(existingGoal = null) {
     title: isEditing ? "Edit Savings Goal" : "Create New Savings Goal",
     contentHtml: formHtml,
     saveLabel: isEditing ? "Save Goal" : "Create Goal",
-    onSave: modalBody => {
+    onSave: async modalBody => {
       const title = modalBody.querySelector("#goal-modal-title").value;
       const category = modalBody.querySelector("#goal-modal-cat").value;
       const targetAmount = modalBody.querySelector("#goal-modal-target").value;
@@ -410,9 +418,9 @@ export function openGoalModal(existingGoal = null) {
         description
       };
 
-      const result = isEditing ? updateGoal(payload) : addGoal(payload);
-      if (!result.success) {
-        errorDiv.textContent = result.errors.join(" ");
+      const result = await (isEditing ? updateGoal(payload) : addGoal(payload));
+      if (!result || !result.success) {
+        errorDiv.textContent = (result?.errors || [result?.error || "Failed to save goal."]).join(" ");
         errorDiv.style.display = "block";
         return false;
       }
@@ -486,7 +494,7 @@ function openAllocationModal(goal, maxAvailable) {
     title: `Deposit to "${goal.title}"`,
     contentHtml: formHtml,
     saveLabel: "Deposit Funds",
-    onSave: modalBody => {
+    onSave: async modalBody => {
       const amount = modalBody.querySelector("#alloc-modal-amount").value;
       const dateAD = modalBody.querySelector("#alloc-modal-date").value;
       const note = modalBody.querySelector("#alloc-modal-note").value;
@@ -498,9 +506,9 @@ function openAllocationModal(goal, maxAvailable) {
         note
       };
 
-      const result = addGoalAllocation(goal.id, payload, maxAvailable);
-      if (!result.success) {
-        errorDiv.textContent = result.errors.join(" ");
+      const result = await addGoalAllocation(goal.id, payload, maxAvailable);
+      if (!result || !result.success) {
+        errorDiv.textContent = (result?.errors || [result?.error || "Failed to allocate funds."]).join(" ");
         errorDiv.style.display = "block";
         return false;
       }

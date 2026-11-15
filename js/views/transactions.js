@@ -18,7 +18,7 @@ import {
   getCategoryColor,
   getPaymentMethodLabel
 } from "../services/transactions.js";
-import { addTransaction, updateTransaction, deleteTransaction, getState } from "../core/state.js";
+import { addTransaction, updateTransaction, deleteTransaction, getState, resolvePrimaryAccount } from "../core/state.js";
 import { openTransferModal } from "./accounts.js";
 import { openModal } from "../components/modal.js";
 import { showConfirmDialog } from "../components/confirm-dialog.js";
@@ -222,7 +222,9 @@ export function renderTransactions(container, state) {
                       <td style="padding: var(--space-4) var(--space-6); text-align: right; white-space: nowrap;">
                         ${!isTransfer ? `
                           <button class="btn-icon btn-edit-tx" data-id="${tx.id}" title="Edit Transaction" style="width: 32px; height: 32px; margin-right: 4px;">✏️</button>
-                        ` : ""}
+                        ` : `
+                          <button class="btn-icon btn-edit-transfer" data-transfer-id="${tx.transferId}" title="Edit Transfer" style="width: 32px; height: 32px; margin-right: 4px;">✏️</button>
+                        `}
                         <button class="btn-icon btn-delete-tx" data-id="${tx.id}" title="Delete Transaction" style="width: 32px; height: 32px; color: var(--color-expense);">🗑️</button>
                       </td>
                     </tr>
@@ -318,6 +320,26 @@ function bindFilterEvents(container, state) {
     });
   });
 
+  container.querySelectorAll(".btn-edit-transfer").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const transferId = btn.dataset.transferId;
+      const legs = (state.transactions || []).filter(t => t.transferId === transferId);
+      if (legs.length === 2) {
+        const outLeg = legs.find(t => t.transferDirection === "out") || legs[0];
+        const inLeg = legs.find(t => t.transferDirection === "in") || legs[1];
+        openTransferModal({
+          transferId,
+          fromAccountId: outLeg.accountId,
+          toAccountId: inLeg.accountId,
+          amount: outLeg.amount,
+          dateAD: outLeg.dateAD,
+          description: outLeg.description,
+          paymentMethod: outLeg.paymentMethod
+        });
+      }
+    });
+  });
+
   container.querySelectorAll(".btn-delete-tx").forEach(btn => {
     btn.addEventListener("click", async () => {
       const tx = state.transactions.find(t => t.id === btn.dataset.id);
@@ -331,8 +353,12 @@ function bindFilterEvents(container, state) {
         isDestructive: true
       });
       if (confirmed) {
-        deleteTransaction(tx.id);
-        showToast("Deleted successfully.", "info");
+        const res = await deleteTransaction(tx.id);
+        if (res && res.success) {
+          showToast("Deleted successfully.", "info");
+        } else {
+          showToast((res && res.error) || "Failed to delete transaction.", "error");
+        }
       }
     });
   });
@@ -356,6 +382,14 @@ export function openTransactionModal(existingTx = null) {
   let activeType = existingTx?.type === TRANSACTION_TYPES.INCOME ? TRANSACTION_TYPES.INCOME : TRANSACTION_TYPES.EXPENSE;
   const state = getState();
   const activeAccounts = (state.accounts || []).filter(a => !a.archived);
+  let accounts = [...activeAccounts];
+  if (isEditing && existingTx?.accountId && !accounts.some(a => a.id === existingTx.accountId)) {
+    const existingAcc = (state.accounts || []).find(a => a.id === existingTx.accountId);
+    if (existingAcc) {
+      accounts.unshift({ ...existingAcc, name: `${existingAcc.name} (Archived)` });
+    }
+  }
+  const primaryAcc = resolvePrimaryAccount(activeAccounts);
   const defaultMethod = state.settings?.defaultPaymentMethod || "fonepay";
 
   const todayStr = getTodayLocalDateString();
@@ -364,7 +398,7 @@ export function openTransactionModal(existingTx = null) {
   const initialDesc = isEditing ? existingTx.description : "";
   const initialCat = isEditing ? existingTx.category : "";
   const initialMethod = isEditing ? existingTx.paymentMethod : defaultMethod;
-  const initialAccId = isEditing ? existingTx.accountId : (activeAccounts[0]?.id || "acc_default_cash");
+  const initialAccId = isEditing ? existingTx.accountId : (primaryAcc?.id || (accounts[0]?.id || "acc_default_cash"));
 
   const getCategoryOptions = type => {
     const categories = type === TRANSACTION_TYPES.INCOME ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
@@ -393,7 +427,7 @@ export function openTransactionModal(existingTx = null) {
         <div class="form-group">
           <label class="form-label">Account / Wallet *</label>
           <select id="tx-modal-account" class="form-select" required>
-            ${activeAccounts.map(a => `<option value="${a.id}" ${a.id === initialAccId ? "selected" : ""}>${escapeHtml(a.name)}</option>`).join("")}
+            ${accounts.map(a => `<option value="${a.id}" ${a.id === initialAccId ? "selected" : ""}>${escapeHtml(a.name)}</option>`).join("")}
           </select>
         </div>
 
@@ -479,7 +513,7 @@ export function openTransactionModal(existingTx = null) {
         categorySelect.innerHTML = getCategoryOptions(TRANSACTION_TYPES.INCOME);
       });
     },
-    onSave: modalBody => {
+    onSave: async modalBody => {
       const accountId = modalBody.querySelector("#tx-modal-account").value;
       const amount = modalBody.querySelector("#tx-modal-amount").value;
       const category = modalBody.querySelector("#tx-modal-category").value;
@@ -499,9 +533,9 @@ export function openTransactionModal(existingTx = null) {
         paymentMethod
       };
 
-      const result = isEditing ? updateTransaction(txPayload) : addTransaction(txPayload);
-      if (!result.success) {
-        errorDiv.textContent = (result.errors || [result.error]).join(" ");
+      const result = await (isEditing ? updateTransaction(txPayload) : addTransaction(txPayload));
+      if (!result || !result.success) {
+        errorDiv.textContent = (result?.errors || [result?.error || "Transaction persistence failed."]).join(" ");
         errorDiv.style.display = "block";
         return false;
       }

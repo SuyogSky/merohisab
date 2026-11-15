@@ -17,7 +17,12 @@ export function getDemoData() {
       theme: "dark",
       currencyFormat: "symbol",
       dateDisplay: "both",
-      defaultPaymentMethod: "fonepay"
+      defaultPaymentMethod: "fonepay",
+      userName: "MeroHisab User",
+      userRole: "Personal Ledger",
+      profile: {
+        displayName: "MeroHisab User"
+      }
     },
     transactions: [
       {

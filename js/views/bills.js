@@ -3,7 +3,7 @@
  */
 import { formatCurrency } from "../utils/formatters.js";
 import { EXPENSE_CATEGORIES } from "../core/constants.js";
-import { getState, dispatch, computeBillStatus } from "../core/state.js";
+import { getState, dispatch, computeBillStatus, resolvePrimaryAccount } from "../core/state.js";
 import { openModal } from "../components/modal.js";
 import { showConfirmDialog } from "../components/confirm-dialog.js";
 import { showToast } from "../components/toast.js";
@@ -11,7 +11,12 @@ import { getTodayLocalDateString } from "../utils/nepali-calendar.js";
 
 function escapeHtml(str) {
   if (!str) return "";
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 export function renderBills(container, state) {
@@ -96,6 +101,7 @@ export function renderBills(container, state) {
                   ${bill.computedStatus !== "paid" ? `
                     <button class="btn btn-primary btn-pay-bill" data-id="${bill.id}" style="padding: 4px 10px; font-size: 0.75rem;">✓ Mark as Paid</button>
                   ` : `<span style="font-size: var(--font-size-xs); color: var(--color-income); align-self: center; margin-right: auto;">✓ Paid & Linked</span>`}
+                  <button class="btn btn-secondary btn-edit-bill" data-id="${bill.id}" style="padding: 4px 10px; font-size: 0.75rem;">Edit</button>
                   <button class="btn btn-secondary btn-delete-bill" data-id="${bill.id}" style="padding: 4px 10px; font-size: 0.75rem; color: var(--color-expense);">Delete</button>
                 </div>
               </div>
@@ -109,10 +115,17 @@ export function renderBills(container, state) {
   container.querySelector("#btn-add-bill")?.addEventListener("click", () => openBillModal());
 
   container.querySelectorAll(".btn-pay-bill").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const res = await dispatch("PAY_BILL", { id: btn.dataset.id });
+      if (res && res.success) showToast("Bill marked as paid and expense recorded!", "success");
+      else showToast(res?.error || "Failed to process bill payment.", "error");
+    });
+  });
+
+  container.querySelectorAll(".btn-edit-bill").forEach(btn => {
     btn.addEventListener("click", () => {
-      const res = dispatch("PAY_BILL", { id: btn.dataset.id });
-      if (res.success) showToast("Bill marked as paid and expense recorded!", "success");
-      else showToast(res.error, "error");
+      const bill = (state.bills || []).find(b => b.id === btn.dataset.id);
+      if (bill) openBillModal(bill);
     });
   });
 
@@ -125,53 +138,75 @@ export function renderBills(container, state) {
         isDestructive: true
       });
       if (confirmed) {
-        dispatch("DELETE_BILL", { id: btn.dataset.id });
-        showToast("Bill deleted.", "info");
+        const res = await dispatch("DELETE_BILL", { id: btn.dataset.id });
+        if (res && res.success) {
+          showToast("Bill deleted.", "info");
+        } else {
+          showToast(res?.error || "Failed to delete bill.", "error");
+        }
       }
     });
   });
 }
 
-function openBillModal() {
+export function openBillModal(existingBill = null) {
   const state = getState();
-  const accounts = (state.accounts || []).filter(a => !a.archived);
+  const activeAccounts = (state.accounts || []).filter(a => !a.archived);
+  let accounts = [...activeAccounts];
+  if (existingBill?.accountId && !accounts.some(a => a.id === existingBill.accountId)) {
+    const existingAcc = (state.accounts || []).find(a => a.id === existingBill.accountId);
+    if (existingAcc) {
+      accounts.unshift({ ...existingAcc, name: `${existingAcc.name} (Archived)` });
+    }
+  }
+
+  const primaryAcc = resolvePrimaryAccount(activeAccounts);
   const today = getTodayLocalDateString();
+  const isEditing = Boolean(existingBill);
+
+  const initialTitle = existingBill ? existingBill.title : "";
+  const initialAmount = existingBill ? existingBill.amount : "";
+  const initialDue = existingBill ? existingBill.dueDateAD : today;
+  const initialCategory = existingBill ? existingBill.category : "utilities";
+  const initialAccountId = existingBill ? existingBill.accountId : (primaryAcc?.id || (accounts[0]?.id || ""));
+  const initialRecurrence = existingBill ? (existingBill.recurrence?.frequency || "none") : "none";
+
   const formHtml = `
     <form id="bill-form" onsubmit="return false;">
       <div class="form-group">
         <label class="form-label">Bill Title *</label>
-        <input type="text" id="bill-title" class="form-input" placeholder="e.g. NEA Electricity Bill or Worldlink Internet" required />
+        <input type="text" id="bill-title" class="form-input" placeholder="e.g. NEA Electricity Bill or Worldlink Internet" value="${escapeHtml(initialTitle)}" required />
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Amount (NPR) *</label>
-          <input type="number" id="bill-amount" class="form-input" min="1" step="0.01" required />
+          <input type="number" id="bill-amount" class="form-input" min="1" step="0.01" value="${initialAmount}" required />
         </div>
         <div class="form-group">
           <label class="form-label">Due Date (AD) *</label>
-          <input type="date" id="bill-due" class="form-input" value="${today}" required />
+          <input type="date" id="bill-due" class="form-input" value="${initialDue}" required />
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Category *</label>
           <select id="bill-category" class="form-select">
-            ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}" ${c.id === "utilities" ? "selected" : ""}>${c.label}</option>`).join("")}
+            ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}" ${c.id === initialCategory ? "selected" : ""}>${c.label}</option>`).join("")}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Pay From Account *</label>
           <select id="bill-account" class="form-select">
-            ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("")}
+            ${accounts.map(a => `<option value="${a.id}" ${a.id === initialAccountId ? "selected" : ""}>${escapeHtml(a.name)}</option>`).join("")}
           </select>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Repeat / Recurrence</label>
         <select id="bill-recurrence" class="form-select">
-          <option value="none">One-time Bill (Does not repeat)</option>
-          <option value="monthly">Monthly Bill</option>
-          <option value="yearly">Yearly Bill</option>
+          <option value="none" ${initialRecurrence === "none" ? "selected" : ""}>One-time Bill (Does not repeat)</option>
+          <option value="monthly" ${initialRecurrence === "monthly" ? "selected" : ""}>Monthly Bill</option>
+          <option value="yearly" ${initialRecurrence === "yearly" ? "selected" : ""}>Yearly Bill</option>
         </select>
       </div>
       <div id="bill-modal-error" class="form-error" style="display: none;"></div>
@@ -179,18 +214,25 @@ function openBillModal() {
   `;
 
   openModal({
-    title: "Add New Bill",
+    title: isEditing ? "Edit Bill" : "Add New Bill",
     contentHtml: formHtml,
-    saveLabel: "Save Bill",
-    onSave: modalBody => {
+    saveLabel: isEditing ? "Update Bill" : "Save Bill",
+    onSave: async modalBody => {
       const recVal = modalBody.querySelector("#bill-recurrence").value;
       const dueDateAD = modalBody.querySelector("#bill-due").value;
+      const accountId = modalBody.querySelector("#bill-account").value;
+      if (!accountId || !state.accounts?.some(a => a.id === accountId)) {
+        const err = modalBody.querySelector("#bill-modal-error");
+        err.textContent = "Please select a valid account.";
+        err.style.display = "block";
+        return false;
+      }
       const payload = {
         title: modalBody.querySelector("#bill-title").value,
         amount: Number(modalBody.querySelector("#bill-amount").value),
         dueDateAD,
         category: modalBody.querySelector("#bill-category").value,
-        accountId: modalBody.querySelector("#bill-account").value,
+        accountId,
         recurrence: recVal === "none" ? null : {
           frequency: recVal,
           interval: 1,
@@ -198,14 +240,18 @@ function openBillModal() {
           startDate: dueDateAD
         }
       };
-      const res = dispatch("ADD_BILL", payload);
-      if (!res.success) {
+
+      const res = await (isEditing
+        ? dispatch("UPDATE_BILL", { id: existingBill.id, ...payload })
+        : dispatch("ADD_BILL", payload));
+
+      if (!res || !res.success) {
         const err = modalBody.querySelector("#bill-modal-error");
-        err.textContent = res.error;
+        err.textContent = (res?.errors || [res?.error || "Failed to save bill."]).join(" ");
         err.style.display = "block";
         return false;
       }
-      showToast("Bill added!", "success");
+      showToast(isEditing ? "Bill updated!" : "Bill added!", "success");
       return true;
     }
   });

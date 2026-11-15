@@ -8,36 +8,68 @@ import { getState } from "../core/state.js";
 
 /**
  * Format a number using South Asian numbering system (en-IN notation: 1,23,456.78)
- * @param {number} value
+ *
+ * Documented Rounding Policy:
+ * Half-up rounding (round half away from zero: e.g. 1.50 -> 2, -1.50 -> -2, 1.49 -> 1, -1.49 -> -1).
+ * Applies identically to numeric string and JS Number inputs using exact BigInt arithmetic
+ * to eliminate floating-point truncation, ULP representation drift, and precision loss.
+ *
+ * @param {number|string|bigint} value
  * @param {number} decimalPlaces
  * @returns {string}
  */
 export function formatNepaliNumber(value, decimalPlaces = 2) {
-  if (value === null || value === undefined || isNaN(value)) {
-    return "0.00";
+  if (value === null || value === undefined || value === "") {
+    return decimalPlaces > 0 ? "0." + "0".repeat(decimalPlaces) : "0";
   }
 
-  const num = Number(value);
-  const parts = num.toFixed(decimalPlaces).split(".");
-  const integerPart = parts[0];
-  const decimalPart = parts.length > 1 ? `.${parts[1]}` : "";
+  const clean = (typeof value === "string" ? value.replace(/,/g, "") : String(value)).trim();
+  if (clean === "" || isNaN(Number(clean))) {
+    return decimalPlaces > 0 ? "0." + "0".repeat(decimalPlaces) : "0";
+  }
 
-  // Handle negative sign
-  const isNegative = integerPart.startsWith("-");
-  const absInteger = isNegative ? integerPart.slice(1) : integerPart;
+  const isNegative = clean.startsWith("-");
+  const raw = isNegative ? clean.slice(1) : clean;
+  const [intPart = "0", fracPart = ""] = raw.split(".");
+
+  let roundedInt = intPart;
+  let roundedFrac = "";
+
+  if (fracPart.length > decimalPlaces) {
+    const inspectDigit = parseInt(fracPart[decimalPlaces] || "0", 10);
+    const baseFrac = fracPart.slice(0, decimalPlaces);
+    const combinedStr = intPart + baseFrac;
+    let combinedBig = BigInt(combinedStr || "0");
+    if (inspectDigit >= 5) {
+      combinedBig += 1n;
+    }
+    const combinedResStr = combinedBig.toString().padStart(decimalPlaces + 1, "0");
+    if (decimalPlaces > 0) {
+      roundedInt = combinedResStr.slice(0, combinedResStr.length - decimalPlaces);
+      roundedFrac = combinedResStr.slice(combinedResStr.length - decimalPlaces);
+    } else {
+      roundedInt = combinedResStr;
+      roundedFrac = "";
+    }
+  } else {
+    roundedFrac = decimalPlaces > 0 ? fracPart.padEnd(decimalPlaces, "0") : "";
+  }
+
+  // Handle negative sign: only show negative if rounded value is non-zero
+  const isNonZero = BigInt(roundedInt) > 0n || (roundedFrac && BigInt(roundedFrac) > 0n);
+  const showNegative = isNegative && isNonZero;
 
   // South Asian formatting: Last 3 digits grouped, preceding grouped in 2s
-  let lastThree = absInteger.slice(-3);
-  const otherNumbers = absInteger.slice(0, -3);
-
+  let lastThree = roundedInt.slice(-3);
+  const otherNumbers = roundedInt.slice(0, -3);
   if (otherNumbers !== "") {
     lastThree = "," + lastThree;
   }
 
   const formattedInteger = otherNumbers.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + lastThree;
-  const result = (isNegative ? "-" : "") + formattedInteger + (decimalPlaces > 0 ? decimalPart : "");
+  const decimalPart = decimalPlaces > 0 ? `.${roundedFrac}` : "";
 
-  return result;
+  return (showNegative ? "-" : "") + formattedInteger + decimalPart;
 }
 
 /**

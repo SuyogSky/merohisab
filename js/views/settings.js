@@ -4,11 +4,49 @@
  */
 
 import { formatCurrency } from "../utils/formatters.js";
-import { dispatch, getState } from "../core/state.js";
+import { dispatch, getState, getProfileDisplayName } from "../core/state.js";
 import { showToast } from "../components/toast.js";
 import { showConfirmDialog } from "../components/confirm-dialog.js";
-import { exportTransactionsToCsv, exportBackupToJson, readAndValidateBackupFile } from "../utils/file-io.js";
+import { exportTransactionsToCsv, exportBackupToJson, exportRecoverySnapshot, readAndValidateBackupFile } from "../utils/file-io.js";
 import { PAYMENT_METHODS } from "../core/constants.js";
+import { getPersistenceStatus, requestPersistence, checkPersistenceStatus, PERSISTENCE_STATUS } from "../utils/storage-persistence.js";
+import { isValidMoneyAmount, toPaisaBigInt, fromPaisaBigInt } from "../utils/money.js";
+
+function getPersistenceInfo(status) {
+  switch (status) {
+    case PERSISTENCE_STATUS.GRANTED:
+      return {
+        badgeClass: "badge-safe",
+        badgeText: "🛡️ Protected Persistence",
+        boxText: "✅ <strong>Browser Storage Persistence Active:</strong> Your browser has granted persistent storage protection, reducing the risk of automatic storage eviction when device storage is constrained.<br><br><em>Note: Persistent storage protects against automatic browser eviction, but cannot protect against manual clearing of site data, hardware failure, or device loss. Regular JSON backups below remain necessary.</em>"
+      };
+    case PERSISTENCE_STATUS.NOT_GRANTED:
+      return {
+        badgeClass: "badge-method",
+        badgeText: "Standard Local Storage",
+        boxText: "⚠️ <strong>Standard Session Storage:</strong> Storage persistence has not been explicitly granted by the browser. If your device runs low on disk space, the browser may evict local cache. Download regular JSON backups below to guarantee long-term data safety."
+      };
+    case PERSISTENCE_STATUS.UNSUPPORTED:
+      return {
+        badgeClass: "badge-method",
+        badgeText: "ℹ️ API Unsupported",
+        boxText: "ℹ️ <strong>StorageManager Persistence Unsupported:</strong> This browser or platform does not support the Storage Persistence API. Data is safely stored in IndexedDB and LocalStorage, but regular external JSON backups are strongly recommended."
+      };
+    case PERSISTENCE_STATUS.UNAVAILABLE:
+      return {
+        badgeClass: "badge-warning",
+        badgeText: "⚠️ Status Unavailable",
+        boxText: "⚠️ <strong>Storage Status Unavailable:</strong> The browser storage manager encountered an error or permission restriction when checking status. Regular JSON backups are recommended."
+      };
+    case PERSISTENCE_STATUS.CHECKING:
+    default:
+      return {
+        badgeClass: "badge-method",
+        badgeText: "🔄 Checking Status...",
+        boxText: "🔄 <strong>Inspecting Browser Storage Status:</strong> Querying browser storage manager for persistence guarantees..."
+      };
+  }
+}
 
 function escapeHtml(str) {
   if (typeof str !== "string") return str;
@@ -27,9 +65,58 @@ export function renderSettings(container, state) {
   const currencyFormat = settings.currencyFormat || settings.currencyDisplay || "symbol";
   const dateDisplay = settings.dateDisplay || "both";
 
+  const currentDisplayName = getProfileDisplayName(state);
+  const currentUserName = settings.userName || currentDisplayName || "MeroHisab User";
+  const currentUserRole = settings.userRole || "Personal Ledger";
+  const persistStatus = getPersistenceStatus();
+  const persistInfo = getPersistenceInfo(persistStatus);
+
   container.innerHTML = `
     <div style="display: flex; flex-direction: column; gap: var(--space-6);">
       
+      <!-- 0. User Profile Settings -->
+      <div class="content-card">
+        <div class="content-card-header">
+          <div class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>User Profile</span>
+          </div>
+          <span class="badge badge-info" id="profile-current-badge">${escapeHtml(currentDisplayName)}</span>
+        </div>
+        <div class="content-card-body">
+          <form id="profile-settings-form" style="display: flex; flex-direction: column; gap: var(--space-4);">
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5;">
+              Personalize your MeroHisab ledger. Your display name appears in the sidebar and navigation.
+            </p>
+
+            <div style="max-width: 480px;">
+              <div class="form-group">
+                <label class="form-label" for="setting-display-name">Display Name *</label>
+                <input
+                  type="text"
+                  id="setting-display-name"
+                  class="form-input"
+                  maxlength="60"
+                  value="${escapeHtml(currentDisplayName)}"
+                  placeholder="e.g., Aarav Sharma"
+                  required
+                />
+                <span class="form-hint">Up to 60 characters. Avatar initials update automatically.</span>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-start; margin-top: var(--space-2);">
+              <button type="submit" id="btn-save-profile" class="btn btn-primary">
+                💾 Save Profile
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <!-- 1. Financial Baseline & Ledger Settings -->
       <div class="content-card">
         <div class="content-card-header">
@@ -101,6 +188,33 @@ export function renderSettings(container, state) {
           <form id="preferences-form" style="display: flex; flex-direction: column; gap: var(--space-5);">
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-5);">
               
+              <!-- User Profile Name & Ledger Subtitle -->
+              <div class="form-group">
+                <label class="form-label" for="setting-user-name">Your Full Name (Display Name)</label>
+                <input
+                  type="text"
+                  id="setting-user-name"
+                  class="form-input"
+                  maxlength="60"
+                  value="${escapeHtml(currentUserName)}"
+                  placeholder="e.g., Suyog Shakya"
+                />
+                <span class="form-hint">Shown in the sidebar and navigation header</span>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="setting-user-role">Ledger Title / Subtitle</label>
+                <input
+                  type="text"
+                  id="setting-user-role"
+                  class="form-input"
+                  maxlength="60"
+                  value="${escapeHtml(currentUserRole)}"
+                  placeholder="e.g., Personal Ledger"
+                />
+                <span class="form-hint">Subtitle displayed below your name in the sidebar</span>
+              </div>
+
               <!-- Theme Selection -->
               <div class="form-group">
                 <label class="form-label">Theme Mode</label>
@@ -180,59 +294,66 @@ export function renderSettings(container, state) {
             Your data is 100% private and stored locally. You can export complete backups in plain JSON, download CSV transaction ledgers for Excel/Sheets, or restore from a previously exported backup file.
           </p>
 
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4);">
-            
-            <!-- Export Transactions CSV -->
-            <div style="padding: var(--space-4); background-color: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3);">
-              <div>
-                <div style="font-weight: var(--font-weight-semibold); color: var(--text-primary); margin-bottom: var(--space-1);">
-                  📊 Export Transactions (CSV)
-                </div>
-                <div style="font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.4;">
-                  Includes UTF-8 BOM for Microsoft Excel. Exports all ${state.transactions.length} transactions with AD and BS dates.
-                </div>
-              </div>
-              <button id="btn-export-csv" class="btn btn-secondary" style="width: 100%;">
-                ⬇️ Download CSV File
-              </button>
+          ${state.recoveryMode ? `
+          <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid #ef4444; border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-4);">
+            <strong style="color: #ef4444;">Protected Recovery Mode Active:</strong>
+            <p style="margin: 4px 0 0 0; font-size: var(--font-size-xs); color: var(--text-secondary); line-height: 1.5;">
+              Ordinary backup export is disabled to prevent saving empty recovery placeholders. You can export each raw recoverable snapshot individually:
+            </p>
+            <div style="display: flex; gap: var(--space-2); margin-top: var(--space-3); flex-wrap: wrap;">
+              ${state.idbRecoverableState ? `<button id="btn-export-recovery-idb" class="btn btn-sm btn-secondary">📥 Export merohisab-recovery-indexeddb.json</button>` : ""}
+              ${state.lsRecoverableState ? `<button id="btn-export-recovery-ls" class="btn btn-sm btn-secondary">📥 Export merohisab-recovery-localstorage.json</button>` : ""}
             </div>
+          </div>
+          ` : ""}
 
-            <!-- Export Full JSON Backup -->
-            <div style="padding: var(--space-4); background-color: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3);">
-              <div>
-                <div style="font-weight: var(--font-weight-semibold); color: var(--text-primary); margin-bottom: var(--space-1);">
-                  📦 Export Full Snapshot (JSON)
-                </div>
-                <div style="font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.4;">
-                  Complete schema backup including settings, transactions, budgets, and savings allocations.
-                </div>
-              </div>
-              <button id="btn-export-json" class="btn btn-secondary" style="width: 100%;">
-                ⬇️ Download JSON Backup
-              </button>
-            </div>
-
-            <!-- Restore JSON Backup -->
-            <div style="padding: var(--space-4); background-color: var(--bg-card-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); display: flex; flex-direction: column; justify-content: space-between; gap: var(--space-3);">
-              <div>
-                <div style="font-weight: var(--font-weight-semibold); color: var(--text-primary); margin-bottom: var(--space-1);">
-                  📥 Restore Backup (JSON)
-                </div>
-                <div style="font-size: var(--font-size-xs); color: var(--text-muted); line-height: 1.4;">
-                  Upload and validate an existing MeroHisab backup file to restore your finances.
-                </div>
-              </div>
-              <input type="file" id="backup-file-input" accept=".json" style="display: none;" />
-              <button id="btn-trigger-upload" class="btn btn-secondary" style="width: 100%;">
-                📂 Select JSON File...
-              </button>
-            </div>
-
+          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+            <button id="btn-export-json" class="btn btn-secondary" ${state.recoveryMode ? "disabled title='Disabled in recovery mode'" : ""}>
+              📥 Download JSON Backup
+            </button>
+            <button id="btn-export-csv" class="btn btn-secondary" ${state.recoveryMode ? "disabled title='Disabled in recovery mode'" : ""}>
+              📊 Export CSV (Excel/Sheets)
+            </button>
+            <button id="btn-trigger-upload" class="btn btn-primary" ${state.recoveryMode && state.recoveryType === "equal_revision_conflict" ? "disabled title='Resolve storage conflict first'" : ""}>
+              📤 Restore from JSON Backup
+            </button>
+            <input type="file" id="backup-file-input" accept=".json" style="display: none;" />
           </div>
         </div>
       </div>
 
-      <!-- 4. Demo Data & Storage Reset -->
+      <!-- 4. Storage Durability & Quota Status -->
+      <div class="content-card">
+        <div class="content-card-header">
+          <div class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
+            <span>Storage Durability & Retention Status</span>
+          </div>
+          <span id="storage-persist-badge" class="badge ${persistInfo.badgeClass}">
+            ${persistInfo.badgeText}
+          </span>
+        </div>
+        <div class="content-card-body">
+          <p style="font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5; margin-bottom: var(--space-3);">
+            <strong>Financial Database:</strong> IndexedDB (<code>MeroHisabDB</code>) with verified LocalStorage mirror.
+            <br>
+            <strong>Application Shell:</strong> Service Worker cache (<code>merohisab-v3.1.0</code>) stores static UI assets only and never contains your personal financial records.
+          </p>
+          <div id="storage-persist-box" style="padding: var(--space-3); background: var(--bg-card-subtle); border-radius: var(--radius-md); font-size: var(--font-size-xs); line-height: 1.6; margin-bottom: var(--space-3);">
+            ${persistInfo.boxText}
+          </div>
+          <div style="display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap;">
+            <button type="button" id="btn-request-persist" class="btn btn-secondary" style="font-size: var(--font-size-xs);">
+              🛡️ Request Browser Storage Persistence Guarantee
+            </button>
+            <span id="storage-persist-status" style="font-size: var(--font-size-xs); color: var(--text-muted);"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Demo Data & Storage Reset -->
       <div class="content-card">
         <div class="content-card-header">
           <div class="card-title">
@@ -249,13 +370,21 @@ export function renderSettings(container, state) {
         <div class="content-card-body">
           <div style="display: flex; flex-direction: column; gap: var(--space-4);">
             <p style="font-size: var(--font-size-sm); color: var(--text-secondary); line-height: 1.5;">
-              You can restore the realistic Nepal demo dataset anytime (useful for presentations and testing) or reset your local storage to a blank slate.
+              You can start your personal ledger with a clean, zero-balance workspace, restore the realistic Nepal demo dataset anytime (for presentations/testing), or clear your records.
             </p>
+            ${state.recoveryMode && state.recoveryType === "equal_revision_conflict" ? `
+            <p style="font-size: var(--font-size-xs); color: #ef4444; margin: 0; font-weight: 500;">
+              ⚠️ Storage maintenance actions (Demo Reset & Clear All) are blocked while in equal-revision recovery mode to prevent accidental data loss. Please resolve the storage conflict above first.
+            </p>
+            ` : ""}
             <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
-              <button id="btn-reset-demo" class="btn btn-secondary">
+              <button id="btn-start-personal" class="btn btn-primary" style="background-color: var(--color-primary);" ${state.recoveryMode && state.recoveryType === "equal_revision_conflict" ? "disabled title='Resolve storage conflict first'" : ""}>
+                💼 Start Clean Personal Ledger
+              </button>
+              <button id="btn-reset-demo" class="btn btn-secondary" ${state.recoveryMode && state.recoveryType === "equal_revision_conflict" ? "disabled title='Resolve storage conflict first'" : ""}>
                 🔄 Reload Realistic Demo Dataset
               </button>
-              <button id="btn-clear-data" class="btn btn-secondary" style="color: var(--color-expense);">
+              <button id="btn-clear-data" class="btn btn-secondary" style="color: var(--color-expense);" ${state.recoveryMode && state.recoveryType === "equal_revision_conflict" ? "disabled title='Resolve storage conflict first'" : ""}>
                 🗑️ Clear All Data (Blank Ledger)
               </button>
             </div>
@@ -268,16 +397,87 @@ export function renderSettings(container, state) {
 
   // Attach Event Handlers
 
+  // 0. Profile Settings Form Submit
+  const profileForm = container.querySelector("#profile-settings-form");
+  if (profileForm) {
+    profileForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const inputEl = container.querySelector("#setting-display-name");
+      const rawName = inputEl ? inputEl.value : "";
+      const trimmed = (rawName || "").trim();
+
+      if (!trimmed) {
+        showToast("Display name cannot be empty.", "error");
+        if (inputEl) inputEl.focus();
+        return;
+      }
+
+      if (trimmed.length > 60) {
+        showToast("Display name cannot exceed 60 characters.", "error");
+        if (inputEl) inputEl.focus();
+        return;
+      }
+
+      const res = await dispatch("UPDATE_PROFILE", { displayName: trimmed });
+      if (res && res.success === false) {
+        showToast(res.error || "Failed to update profile display name.", "error");
+      } else {
+        showToast("Profile display name updated successfully!", "success");
+        const badge = container.querySelector("#profile-current-badge");
+        if (badge) badge.textContent = trimmed;
+        if (inputEl) inputEl.value = trimmed;
+      }
+    });
+  }
+
+  // Storage Persistence Request Handler
+  const reqPersistBtn = container.querySelector("#btn-request-persist");
+  const persistStatusEl = container.querySelector("#storage-persist-status");
+  const updatePersistenceUI = (st) => {
+    const info = getPersistenceInfo(st);
+    const badge = container.querySelector("#storage-persist-badge");
+    const box = container.querySelector("#storage-persist-box");
+    if (badge) {
+      badge.className = `badge ${info.badgeClass}`;
+      badge.textContent = info.badgeText;
+    }
+    if (box) {
+      box.innerHTML = info.boxText;
+    }
+  };
+
+  if (reqPersistBtn) {
+    reqPersistBtn.addEventListener("click", async () => {
+      reqPersistBtn.disabled = true;
+      if (persistStatusEl) persistStatusEl.textContent = "Requesting permission from browser...";
+      const res = await requestPersistence();
+      reqPersistBtn.disabled = false;
+      updatePersistenceUI(res.status);
+      if (res.success) {
+        showToast("Storage persistence granted by browser!", "success");
+        if (persistStatusEl) persistStatusEl.textContent = "Status: Granted (Protected)";
+      } else {
+        showToast(res.error || "Browser declined persistence guarantee (standard storage active).", "info");
+        if (persistStatusEl) persistStatusEl.textContent = `Status: ${res.status === PERSISTENCE_STATUS.UNSUPPORTED ? "Unsupported" : "Standard (Denied by browser)"}`;
+      }
+    });
+  }
+
+  // If status is checking, refresh dynamically
+  if (persistStatus === PERSISTENCE_STATUS.CHECKING) {
+    checkPersistenceStatus().then(st => updatePersistenceUI(st)).catch(() => {});
+  }
+
   // 1. Ledger Baseline Form Submit
   const baselineForm = container.querySelector("#ledger-baseline-form");
   if (baselineForm) {
-    baselineForm.addEventListener("submit", (e) => {
+    baselineForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const initialBalance = parseFloat(container.querySelector("#setting-initial-balance").value);
-      const initialBalanceDate = container.querySelector("#setting-initial-date").value;
+      const rawInitialBalance = container.querySelector("#setting-initial-balance")?.value;
+      const initialBalanceDate = container.querySelector("#setting-initial-date")?.value;
 
-      if (isNaN(initialBalance) || initialBalance < 0) {
-        showToast("Opening balance must be a valid non-negative number.", "error");
+      if (!isValidMoneyAmount(rawInitialBalance, true)) {
+        showToast("Opening balance must be a valid non-negative amount with at most 2 decimal places.", "error");
         return;
       }
       if (!initialBalanceDate) {
@@ -285,25 +485,39 @@ export function renderSettings(container, state) {
         return;
       }
 
-      dispatch("UPDATE_SETTINGS", {
+      const initialBalance = fromPaisaBigInt(toPaisaBigInt(rawInitialBalance));
+
+      const res = await dispatch("UPDATE_SETTINGS", {
         initialBalance,
         initialBalanceDate
       });
 
-      showToast(`Ledger baseline updated: ${formatCurrency(initialBalance)} effective ${initialBalanceDate}`, "success");
+      if (res && res.success === false) {
+        showToast(res.error || "Failed to update ledger baseline.", "error");
+      } else {
+        showToast(`Ledger baseline updated: ${formatCurrency(initialBalance)} effective ${initialBalanceDate}`, "success");
+      }
     });
   }
 
   // 2. Preferences Form Submit
   const prefForm = container.querySelector("#preferences-form");
   if (prefForm) {
-    prefForm.addEventListener("submit", (e) => {
+    prefForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const userNameInput = container.querySelector("#setting-user-name");
+      const userRoleInput = container.querySelector("#setting-user-role");
+      const userName = (userNameInput?.value || "").trim() || "MeroHisab User";
+      const userRole = (userRoleInput?.value || "").trim() || "Personal Ledger";
+
       const defaultPaymentMethod = container.querySelector("#setting-default-method").value;
       const currencyFormat = container.querySelector("#setting-currency-format").value;
       const dateDisplay = container.querySelector("#setting-date-display").value;
 
-      const res = dispatch("UPDATE_SETTINGS", {
+      const res = await dispatch("UPDATE_SETTINGS", {
+        userName,
+        userRole,
+        profile: { displayName: userName },
         defaultPaymentMethod,
         currencyFormat,
         currencyDisplay: currencyFormat,
@@ -314,6 +528,10 @@ export function renderSettings(container, state) {
         showToast(res.error || "Failed to save preferences.", "error");
       } else {
         showToast("Preferences saved successfully!", "success");
+        const badge = container.querySelector("#profile-current-badge");
+        if (badge) badge.textContent = userName;
+        const profileInput = container.querySelector("#setting-display-name");
+        if (profileInput) profileInput.value = userName;
       }
     });
   }
@@ -321,20 +539,49 @@ export function renderSettings(container, state) {
   // Theme switch buttons
   const themeBtns = container.querySelectorAll(".theme-select-btn");
   themeBtns.forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const selectedTheme = btn.getAttribute("data-theme-val");
-      dispatch("SET_THEME", selectedTheme);
+      await dispatch("SET_THEME", selectedTheme);
       document.documentElement.setAttribute("data-theme", selectedTheme);
       showToast(`Theme switched to ${selectedTheme === "dark" ? "Dark Navy" : "Crisp Light"}`, "info");
       renderSettings(container, getState());
     });
   });
 
+  // Recovery snapshot export handlers
+  const exportRecoveryIdbBtn = container.querySelector("#btn-export-recovery-idb");
+  if (exportRecoveryIdbBtn) {
+    exportRecoveryIdbBtn.addEventListener("click", () => {
+      try {
+        exportRecoverySnapshot(state.idbRecoverableState, "indexeddb");
+        showToast("Exported merohisab-recovery-indexeddb.json", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  }
+
+  const exportRecoveryLsBtn = container.querySelector("#btn-export-recovery-ls");
+  if (exportRecoveryLsBtn) {
+    exportRecoveryLsBtn.addEventListener("click", () => {
+      try {
+        exportRecoverySnapshot(state.lsRecoverableState, "localstorage");
+        showToast("Exported merohisab-recovery-localstorage.json", "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  }
+
   // 3. Export CSV
   const exportCsvBtn = container.querySelector("#btn-export-csv");
   if (exportCsvBtn) {
     exportCsvBtn.addEventListener("click", () => {
       try {
+        if (state.recoveryMode) {
+          showToast("CSV export is disabled in recovery mode.", "warning");
+          return;
+        }
         if (!state.transactions || state.transactions.length === 0) {
           showToast("No transactions to export.", "warning");
           return;
@@ -352,10 +599,14 @@ export function renderSettings(container, state) {
   if (exportJsonBtn) {
     exportJsonBtn.addEventListener("click", () => {
       try {
+        if (state.recoveryMode) {
+          showToast("Ordinary backup export is disabled in recovery mode. Export raw recovery snapshots above.", "warning");
+          return;
+        }
         exportBackupToJson(state);
         showToast("Full JSON backup downloaded successfully!", "success");
       } catch (err) {
-        showToast("Failed to export JSON backup.", "error");
+        showToast(err.message || "Failed to export JSON backup.", "error");
       }
     });
   }
@@ -365,6 +616,10 @@ export function renderSettings(container, state) {
   const triggerUploadBtn = container.querySelector("#btn-trigger-upload");
   if (triggerUploadBtn && fileInput) {
     triggerUploadBtn.addEventListener("click", () => {
+      if (state.recoveryMode && state.recoveryType === "equal_revision_conflict") {
+        showToast("Backup restoration is blocked during equal-revision conflict. Please resolve the conflict first.", "warning");
+        return;
+      }
       fileInput.value = "";
       fileInput.click();
     });
@@ -405,8 +660,39 @@ export function renderSettings(container, state) {
       });
 
       if (confirmed) {
-        dispatch("RESTORE_BACKUP", backup);
-        showToast("Backup restored successfully!", "success");
+        const res = await dispatch("RESTORE_BACKUP", backup);
+        if (res && res.success === false) {
+          showToast(res.error || "Failed to restore backup.", "error");
+        } else {
+          showToast("Backup restored successfully!", "success");
+        }
+      }
+    });
+  }
+
+  // 5b. Start Clean Personal Ledger
+  const startPersonalBtn = container.querySelector("#btn-start-personal");
+  if (startPersonalBtn) {
+    startPersonalBtn.addEventListener("click", async () => {
+      if (state.recoveryMode && state.recoveryType === "equal_revision_conflict") {
+        showToast("Personal ledger initialization is blocked during equal-revision conflict. Please resolve the conflict first.", "warning");
+        return;
+      }
+      const confirmed = await showConfirmDialog({
+        title: "Start Personal Ledger?",
+        message: "This will remove the sample fictional demo records and create a clean, zero-balance workspace ready for your real personal finances.\n\nDo you want to proceed?",
+        confirmLabel: "Start Personal Ledger",
+        isDestructive: false
+      });
+
+      if (confirmed) {
+        const res = await dispatch("INITIALIZE_PERSONAL_LEDGER");
+        if (res && res.success === false) {
+          showToast(res.error || "Failed to initialize personal ledger.", "error");
+        } else {
+          showToast("Personal ledger initialized with blank workspace!", "success");
+          renderSettings(container, getState());
+        }
       }
     });
   }
@@ -415,6 +701,10 @@ export function renderSettings(container, state) {
   const resetDemoBtn = container.querySelector("#btn-reset-demo");
   if (resetDemoBtn) {
     resetDemoBtn.addEventListener("click", async () => {
+      if (state.recoveryMode && state.recoveryType === "equal_revision_conflict") {
+        showToast("Demo data reset is blocked during equal-revision conflict. Please resolve the conflict first.", "warning");
+        return;
+      }
       const confirmed = await showConfirmDialog({
         title: "Reload Demo Dataset?",
         message: "This will overwrite your current ledger and restore the realistic verified Nepal demo dataset with 20 transactions, 5 budgets, and 2 savings goals.",
@@ -423,8 +713,12 @@ export function renderSettings(container, state) {
       });
 
       if (confirmed) {
-        dispatch("RESET_TO_DEMO");
-        showToast("Realistic demo dataset reloaded!", "success");
+        const res = await dispatch("RESET_TO_DEMO");
+        if (res && res.success === false) {
+          showToast(res.error || "Failed to reload demo data.", "error");
+        } else {
+          showToast("Realistic demo dataset reloaded!", "success");
+        }
       }
     });
   }
@@ -433,6 +727,10 @@ export function renderSettings(container, state) {
   const clearDataBtn = container.querySelector("#btn-clear-data");
   if (clearDataBtn) {
     clearDataBtn.addEventListener("click", async () => {
+      if (state.recoveryMode && state.recoveryType === "equal_revision_conflict") {
+        showToast("Clearing data is blocked during equal-revision conflict. Please resolve the conflict first.", "warning");
+        return;
+      }
       const confirmed = await showConfirmDialog({
         title: "Clear All Data?",
         message: "Are you sure you want to clear your entire ledger? All transactions, budgets, goals, and settings will be permanently erased. This action cannot be undone.",
@@ -441,8 +739,12 @@ export function renderSettings(container, state) {
       });
 
       if (confirmed) {
-        dispatch("CLEAR_ALL_DATA");
-        showToast("Ledger cleared. You now have a blank workspace.", "warning");
+        const res = await dispatch("CLEAR_ALL_DATA");
+        if (res && res.success === false) {
+          showToast(res.error || "Failed to clear ledger.", "error");
+        } else {
+          showToast("Ledger cleared. You now have a blank workspace.", "warning");
+        }
       }
     });
   }

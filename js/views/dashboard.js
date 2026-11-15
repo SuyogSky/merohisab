@@ -14,7 +14,10 @@ import { renderGroupedBarChart, renderDonutChart } from "../utils/canvas-charts.
 import { openTransactionModal } from "./transactions.js";
 import { openBudgetModal } from "./budgets.js";
 import { openGoalModal } from "./goals.js";
-import { computeBillStatus } from "../core/state.js";
+import { computeBillStatus, dispatch } from "../core/state.js";
+import { getTodayLocalDateString } from "../utils/nepali-calendar.js";
+import { showConfirmDialog } from "../components/confirm-dialog.js";
+import { showToast } from "../components/toast.js";
 
 export function renderDashboard(container, state) {
   const summary = calculateFinancialSummary(state);
@@ -31,7 +34,7 @@ export function renderDashboard(container, state) {
     .slice(0, 5);
 
   // --- Bills & Recurring reminder ---
-  const todayAD = new Date().toISOString().slice(0, 10);
+  const todayAD = getTodayLocalDateString();
   const bills = state.bills || [];
   const urgentBills = bills.filter(b => {
     const status = computeBillStatus(b, todayAD);
@@ -40,7 +43,7 @@ export function renderDashboard(container, state) {
 
   const recurringRules = state.recurringRules || [];
   const dueRecurring = recurringRules.filter(r => {
-    if (r.isPaused) return false;
+    if (r.paused || r.isPaused) return false;
     if (!r.nextOccurrence) return false;
     return r.nextOccurrence <= todayAD;
   });
@@ -81,7 +84,64 @@ export function renderDashboard(container, state) {
     </div>
   ` : "";
 
+  const cleanLedgerWelcomeHtml = (!state.isDemoData && (!state.transactions || state.transactions.length === 0)) ? `
+    <div class="card clean-ledger-banner">
+      <div class="clean-ledger-content">
+        <div class="clean-ledger-icon-wrap" aria-hidden="true">
+          <svg class="clean-ledger-flag" width="24" height="28" viewBox="0 0 24 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M2 2 L22 12 L8 12 L22 26 L2 26 Z" fill="#c8102e" stroke="#1d4ed8" stroke-width="1.75" stroke-linejoin="round"/>
+            <path d="M6 7 A 3 3 0 0 0 11 7 A 2.2 2.2 0 0 1 6 7 Z" fill="#ffffff"/>
+            <circle cx="8" cy="19" r="2.2" fill="#ffffff"/>
+            <path d="M8 15.5 L8 22.5 M4.5 19 L11.5 19 M5.5 16.5 L10.5 21.5 M5.5 21.5 L10.5 16.5" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="clean-ledger-title">
+            Welcome to Your Clean Personal Ledger
+          </h3>
+          <p class="clean-ledger-desc">
+            Your financial ledger is fresh with zero demo records. Record your actual opening balances, cash, bank accounts, or first transaction below.
+          </p>
+        </div>
+      </div>
+      <div class="clean-ledger-actions">
+        <a href="#accounts" data-route="accounts" class="btn btn-secondary" style="padding: 6px 14px; font-size: var(--font-size-sm);">
+          ⚙️ Manage Accounts
+        </a>
+        <button id="btn-welcome-add-tx" class="btn btn-primary" style="padding: 6px 14px; font-size: var(--font-size-sm);">
+          + Record First Transaction
+        </button>
+      </div>
+    </div>
+  ` : "";
+
+  const demoBannerHtml = state.isDemoData ? `
+    <div class="card" style="
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+      padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4);
+      background-color: rgba(37, 99, 235, 0.08);
+      border: 1px solid #3b82f6;
+      border-radius: var(--radius-md);
+      flex-wrap: wrap;
+    ">
+      <div style="display: flex; align-items: center; gap: var(--space-2);">
+        <span style="font-size: 1.25rem;">🔍</span>
+        <div>
+          <strong style="color: #2563eb;">Demo Mode Active:</strong>
+          <span style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-left: 4px;">
+            You are viewing sample fictional records for Nepal (रु 50,000 baseline). None of these transactions are real.
+          </span>
+        </div>
+      </div>
+      <button id="btn-switch-personal-ledger" class="btn btn-sm btn-primary" style="background-color: var(--color-primary); padding: 4px 12px; font-size: var(--font-size-xs);">
+        💼 Start My Personal Ledger
+      </button>
+    </div>
+  ` : "";
+
   container.innerHTML = `
+    ${cleanLedgerWelcomeHtml}
+    ${demoBannerHtml}
     ${reminderBannerHtml}
     <!-- Quick Action Bar -->
     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-6);">
@@ -458,6 +518,31 @@ export function renderDashboard(container, state) {
   const btnBudget = container.querySelector("#btn-quick-budget");
   if (btnBudget) {
     btnBudget.addEventListener("click", () => openBudgetModal({ period: selectedMonth }));
+  }
+
+  const btnSwitchPersonal = container.querySelector("#btn-switch-personal-ledger");
+  if (btnSwitchPersonal) {
+    btnSwitchPersonal.addEventListener("click", async () => {
+      const confirmed = await showConfirmDialog({
+        title: "Start My Personal Ledger?",
+        message: "This will remove the sample fictional demo records and create a clean, zero-balance workspace ready for your real personal finances.\n\nDo you want to proceed?",
+        confirmLabel: "Start Personal Ledger",
+        isDestructive: false
+      });
+      if (confirmed) {
+        const res = await dispatch("INITIALIZE_PERSONAL_LEDGER");
+        if (res && res.success) {
+          showToast("Personal ledger initialized with blank workspace!", "success");
+        } else {
+          showToast(res?.error || "Failed to initialize personal ledger", "error");
+        }
+      }
+    });
+  }
+
+  const btnWelcomeTx = container.querySelector("#btn-welcome-add-tx");
+  if (btnWelcomeTx) {
+    btnWelcomeTx.addEventListener("click", () => openTransactionModal("expense"));
   }
 
   const btnGoal = container.querySelector("#btn-quick-goal");

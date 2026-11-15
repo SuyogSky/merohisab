@@ -3,7 +3,7 @@
  */
 import { formatCurrency } from "../utils/formatters.js";
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../core/constants.js";
-import { getState, dispatch } from "../core/state.js";
+import { getState, dispatch, resolvePrimaryAccount } from "../core/state.js";
 import { openModal } from "../components/modal.js";
 import { showConfirmDialog } from "../components/confirm-dialog.js";
 import { showToast } from "../components/toast.js";
@@ -11,7 +11,12 @@ import { adToBs, getTodayLocalDateString } from "../utils/nepali-calendar.js";
 
 function escapeHtml(str) {
   if (!str) return "";
-  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 export function renderRecurring(container, state) {
@@ -90,6 +95,7 @@ export function renderRecurring(container, state) {
                     <button class="btn btn-primary btn-post-rr" data-id="${rule.id}" style="padding: 4px 10px; font-size: 0.75rem;">✓ Confirm & Post</button>
                     <button class="btn btn-secondary btn-skip-rr" data-id="${rule.id}" style="padding: 4px 10px; font-size: 0.75rem;">Skip Next</button>
                   ` : ""}
+                  <button class="btn btn-secondary btn-edit-rr" data-id="${rule.id}" style="padding: 4px 10px; font-size: 0.75rem;">Edit</button>
                   <button class="btn btn-secondary btn-pause-rr" data-id="${rule.id}" style="padding: 4px 10px; font-size: 0.75rem;">${rule.paused ? "Resume" : "Pause"}</button>
                   <button class="btn btn-secondary btn-delete-rr" data-id="${rule.id}" style="padding: 4px 10px; font-size: 0.75rem; color: var(--color-expense);">Delete</button>
                 </div>
@@ -104,25 +110,33 @@ export function renderRecurring(container, state) {
   container.querySelector("#btn-add-recurring")?.addEventListener("click", () => openRecurringModal());
 
   container.querySelectorAll(".btn-post-rr").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const res = dispatch("PROCESS_RECURRING_OCCURRENCE", { id: btn.dataset.id });
-      if (res.success) showToast("Occurrence posted to transactions!", "success");
-      else showToast(res.error, "error");
+    btn.addEventListener("click", async () => {
+      const res = await dispatch("PROCESS_RECURRING_OCCURRENCE", { id: btn.dataset.id });
+      if (res && res.success) showToast("Occurrence posted to transactions!", "success");
+      else showToast(res?.error || "Failed to process recurring occurrence.", "error");
     });
   });
 
   container.querySelectorAll(".btn-skip-rr").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const res = await dispatch("SKIP_RECURRING_OCCURRENCE", { id: btn.dataset.id });
+      if (res && res.success) showToast(`Skipped ${res.skippedDate}. Advanced to ${res.nextOccurrence || "end"}.`, "info");
+      else showToast(res?.error || "Failed to skip occurrence.", "error");
+    });
+  });
+
+  container.querySelectorAll(".btn-edit-rr").forEach(btn => {
     btn.addEventListener("click", () => {
-      const res = dispatch("SKIP_RECURRING_OCCURRENCE", { id: btn.dataset.id });
-      if (res.success) showToast(`Skipped ${res.skippedDate}. Advanced to ${res.nextOccurrence || "end"}.`, "info");
-      else showToast(res.error, "error");
+      const rule = (state.recurringRules || []).find(r => r.id === btn.dataset.id);
+      if (rule) openRecurringModal(rule);
     });
   });
 
   container.querySelectorAll(".btn-pause-rr").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const res = dispatch("TOGGLE_PAUSE_RECURRING_RULE", { id: btn.dataset.id });
-      if (res.success) showToast("Schedule updated.", "info");
+    btn.addEventListener("click", async () => {
+      const res = await dispatch("TOGGLE_PAUSE_RECURRING_RULE", { id: btn.dataset.id });
+      if (res && res.success) showToast("Schedule updated.", "info");
+      else showToast(res?.error || "Failed to update schedule.", "error");
     });
   });
 
@@ -135,47 +149,72 @@ export function renderRecurring(container, state) {
         isDestructive: true
       });
       if (confirmed) {
-        dispatch("DELETE_RECURRING_RULE", { id: btn.dataset.id });
-        showToast("Recurring schedule deleted.", "info");
+        const res = await dispatch("DELETE_RECURRING_RULE", { id: btn.dataset.id });
+        if (res && res.success) {
+          showToast("Recurring schedule deleted.", "info");
+        } else {
+          showToast(res?.error || "Failed to delete recurring schedule.", "error");
+        }
       }
     });
   });
 }
 
-function openRecurringModal() {
+export function openRecurringModal(existingRule = null) {
   const state = getState();
-  const accounts = (state.accounts || []).filter(a => !a.archived);
+  const activeAccounts = (state.accounts || []).filter(a => !a.archived);
+  let accounts = [...activeAccounts];
+  if (existingRule?.accountId && !accounts.some(a => a.id === existingRule.accountId)) {
+    const existingAcc = (state.accounts || []).find(a => a.id === existingRule.accountId);
+    if (existingAcc) {
+      accounts.unshift({ ...existingAcc, name: `${existingAcc.name} (Archived)` });
+    }
+  }
+
+  const primaryAcc = resolvePrimaryAccount(activeAccounts);
   const today = getTodayLocalDateString();
+  const isEditing = Boolean(existingRule);
+
+  const initialTitle = existingRule ? existingRule.title : "";
+  const initialType = existingRule ? existingRule.type : "expense";
+  const initialAccountId = existingRule ? existingRule.accountId : (primaryAcc?.id || (accounts[0]?.id || ""));
+  const initialAmount = existingRule ? existingRule.amount : "";
+  const initialCategory = existingRule ? existingRule.category : (initialType === "income" ? "salary" : "utilities");
+  const initialFreq = existingRule ? (existingRule.schedule?.frequency || "monthly") : "monthly";
+  const initialStart = existingRule ? (existingRule.schedule?.startDate || existingRule.nextOccurrence || today) : today;
+
+  const cats = initialType === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
   const formHtml = `
     <form id="rr-form" onsubmit="return false;">
       <div class="form-group">
         <label class="form-label">Title / Description *</label>
-        <input type="text" id="rr-title" class="form-input" placeholder="e.g. Monthly Salary or Apartment Rent" required />
+        <input type="text" id="rr-title" class="form-input" placeholder="e.g. Monthly Salary or Apartment Rent" value="${escapeHtml(initialTitle)}" required />
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Type *</label>
           <select id="rr-type" class="form-select">
-            <option value="expense">Expense (खर्च)</option>
-            <option value="income">Income (आम्दानी)</option>
+            <option value="expense" ${initialType === "expense" ? "selected" : ""}>Expense (खर्च)</option>
+            <option value="income" ${initialType === "income" ? "selected" : ""}>Income (आम्दानी)</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Account / Wallet *</label>
           <select id="rr-account" class="form-select">
-            ${accounts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("")}
+            ${accounts.map(a => `<option value="${a.id}" ${a.id === initialAccountId ? "selected" : ""}>${escapeHtml(a.name)}</option>`).join("")}
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Amount (NPR) *</label>
-          <input type="number" id="rr-amount" class="form-input" min="1" step="0.01" required />
+          <input type="number" id="rr-amount" class="form-input" min="1" step="0.01" value="${initialAmount}" required />
         </div>
         <div class="form-group">
           <label class="form-label">Category *</label>
           <select id="rr-category" class="form-select">
-            ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}">${c.label}</option>`).join("")}
+            ${cats.map(c => `<option value="${c.id}" ${c.id === initialCategory ? "selected" : ""}>${c.label}</option>`).join("")}
           </select>
         </div>
       </div>
@@ -183,15 +222,15 @@ function openRecurringModal() {
         <div class="form-group">
           <label class="form-label">Frequency *</label>
           <select id="rr-freq" class="form-select">
-            <option value="monthly" selected>Monthly</option>
-            <option value="weekly">Weekly</option>
-            <option value="daily">Daily</option>
-            <option value="yearly">Yearly</option>
+            <option value="monthly" ${initialFreq === "monthly" ? "selected" : ""}>Monthly</option>
+            <option value="weekly" ${initialFreq === "weekly" ? "selected" : ""}>Weekly</option>
+            <option value="daily" ${initialFreq === "daily" ? "selected" : ""}>Daily</option>
+            <option value="yearly" ${initialFreq === "yearly" ? "selected" : ""}>Yearly</option>
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">Start Date (AD) *</label>
-          <input type="date" id="rr-start" class="form-input" value="${today}" required />
+          <input type="date" id="rr-start" class="form-input" value="${initialStart}" required />
         </div>
       </div>
       <div id="rr-modal-error" class="form-error" style="display: none;"></div>
@@ -199,42 +238,55 @@ function openRecurringModal() {
   `;
 
   openModal({
-    title: "Create Recurring Schedule",
+    title: isEditing ? "Edit Recurring Schedule" : "Create Recurring Schedule",
     contentHtml: formHtml,
-    saveLabel: "Create Schedule",
+    saveLabel: isEditing ? "Update Schedule" : "Create Schedule",
     onOpen: modalBody => {
       const typeSel = modalBody.querySelector("#rr-type");
       const catSel = modalBody.querySelector("#rr-category");
       typeSel.addEventListener("change", () => {
-        const cats = typeSel.value === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-        catSel.innerHTML = cats.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
+        const newCats = typeSel.value === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+        catSel.innerHTML = newCats.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
       });
     },
-    onSave: modalBody => {
+    onSave: async modalBody => {
       const startDate = modalBody.querySelector("#rr-start").value;
       const dom = Number(startDate.split("-")[2]);
+      const accountId = modalBody.querySelector("#rr-account").value;
+      if (!accountId || !state.accounts?.some(a => a.id === accountId)) {
+        const err = modalBody.querySelector("#rr-modal-error");
+        err.textContent = "Please select a valid account.";
+        err.style.display = "block";
+        return false;
+      }
       const payload = {
         title: modalBody.querySelector("#rr-title").value,
         type: modalBody.querySelector("#rr-type").value,
-        accountId: modalBody.querySelector("#rr-account").value,
+        accountId,
         amount: Number(modalBody.querySelector("#rr-amount").value),
         category: modalBody.querySelector("#rr-category").value,
-        paymentMethod: state.settings?.defaultPaymentMethod || "fonepay",
+        paymentMethod: existingRule?.paymentMethod || state.settings?.defaultPaymentMethod || "fonepay",
         schedule: {
           frequency: modalBody.querySelector("#rr-freq").value,
           interval: 1,
           dayOfMonth: dom,
           startDate
-        }
+        },
+        paused: existingRule ? Boolean(existingRule.paused) : false,
+        isPaused: existingRule ? Boolean(existingRule.isPaused) : false
       };
-      const res = dispatch("ADD_RECURRING_RULE", payload);
-      if (!res.success) {
+
+      const res = await (isEditing
+        ? dispatch("UPDATE_RECURRING_RULE", { id: existingRule.id, ...payload })
+        : dispatch("ADD_RECURRING_RULE", payload));
+
+      if (!res || !res.success) {
         const err = modalBody.querySelector("#rr-modal-error");
-        err.textContent = res.error;
+        err.textContent = (res?.errors || [res?.error || "Failed to save recurring schedule."]).join(" ");
         err.style.display = "block";
         return false;
       }
-      showToast("Recurring schedule created!", "success");
+      showToast(isEditing ? "Recurring schedule updated!" : "Recurring schedule created!", "success");
       return true;
     }
   });

@@ -1,16 +1,39 @@
 /**
- * MeroHisab — Transaction Management & Financial Calculation Engine (v3 Audited)
+ * MeroHisab — Transaction Management & Financial Calculation Engine (Integer Paisa Engine)
  * Ensures Global Estimated Ledger Balance ALWAYS reconciles 100% with the sum of
  * individual account balances and account-specific openingBalanceDate rules.
+ * All computations use exact integer Paisa arithmetic.
  */
 import { TRANSACTION_TYPES, INCOME_CATEGORIES, EXPENSE_CATEGORIES, PAYMENT_METHODS } from "../core/constants.js";
 import { calculateAccountBalance } from "../core/state.js";
+import { toPaisa, fromPaisa, toPaisaBigInt, fromPaisaBigInt, compareMoney } from "../utils/money.js";
+
+/**
+ * Returns true only if tx.dateAD >= account.openingBalanceDate (or global initialBalanceDate).
+ */
+export function isTransactionActiveForAccount(state, tx) {
+  if (!tx || !tx.dateAD) return false;
+  const initialBalanceDate = state?.settings?.initialBalanceDate || "1970-01-01";
+  if (!state?.accounts || state.accounts.length === 0) {
+    return tx.dateAD >= initialBalanceDate;
+  }
+  const acc = state.accounts.find(a => a.id === tx.accountId);
+  const cutoff = acc?.openingBalanceDate || initialBalanceDate;
+  if (tx.dateAD < cutoff) return false;
+  if (tx.type === "transfer") {
+    const peerAcc = state.accounts.find(a => a.id === tx.peerAccountId);
+    if (!peerAcc || (peerAcc.openingBalanceDate && tx.dateAD < peerAcc.openingBalanceDate)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export function calculateFinancialSummary(state, selectedMonth = null) {
   const hasAccounts = Array.isArray(state.accounts) && state.accounts.length > 0;
-  const initialBalance = hasAccounts
-    ? state.accounts.reduce((sum, a) => sum + (Number(a.openingBalance) || 0), 0)
-    : (Number(state.settings?.initialBalance) || 0);
+  const initialBalancePaisa = hasAccounts
+    ? state.accounts.reduce((sum, a) => sum + toPaisaBigInt(a.openingBalance || 0), 0n)
+    : toPaisaBigInt(state.settings?.initialBalance || 0);
   const initialBalanceDate = state.settings?.initialBalanceDate || "1970-01-01";
 
   if (!selectedMonth) {
@@ -24,77 +47,66 @@ export function calculateFinancialSummary(state, selectedMonth = null) {
     }
   }
 
-  let activeIncome = 0;
-  let activeExpense = 0;
-
-  // Map accountId -> openingBalanceDate for consistent per-account cutoff
-  const accOpenDates = new Map();
-  if (hasAccounts) {
-    for (const acc of state.accounts) {
-      accOpenDates.set(acc.id, acc.openingBalanceDate || "1970-01-01");
-    }
-  }
+  let activeIncomePaisa = 0n;
+  let activeExpensePaisa = 0n;
 
   for (const t of state.transactions || []) {
-    const cutoffDate = (hasAccounts && t.accountId && accOpenDates.has(t.accountId))
-      ? accOpenDates.get(t.accountId)
-      : initialBalanceDate;
-    if (t.dateAD >= cutoffDate) {
+    if (isTransactionActiveForAccount(state, t)) {
       if (t.type === TRANSACTION_TYPES.INCOME) {
-        activeIncome += Number(t.amount) || 0;
+        activeIncomePaisa += toPaisaBigInt(t.amount);
       } else if (t.type === TRANSACTION_TYPES.EXPENSE) {
-        activeExpense += Number(t.amount) || 0;
+        activeExpensePaisa += toPaisaBigInt(t.amount);
       }
     }
   }
 
-  // 1. Estimated Ledger Balance = exact sum of all account balances when accounts exist
-  const estimatedLedgerBalance = hasAccounts
-    ? Math.round(state.accounts.reduce((sum, a) => sum + calculateAccountBalance(state, a.id), 0) * 100) / 100
-    : Math.round((initialBalance + activeIncome - activeExpense) * 100) / 100;
+  // 1. Estimated Ledger Balance = exact sum of all account balances in integer Paisa
+  const estimatedLedgerBalancePaisa = hasAccounts
+    ? state.accounts.reduce((sum, a) => sum + toPaisaBigInt(calculateAccountBalance(state, a.id)), 0n)
+    : (initialBalancePaisa + activeIncomePaisa - activeExpensePaisa);
 
-  let monthlyInflow = 0;
-  let monthlyOutflow = 0;
+  let monthlyInflowPaisa = 0n;
+  let monthlyOutflowPaisa = 0n;
 
   for (const t of state.transactions || []) {
-    if (t.dateAD.startsWith(selectedMonth)) {
+    if (t.dateAD.startsWith(selectedMonth) && isTransactionActiveForAccount(state, t)) {
       if (t.type === TRANSACTION_TYPES.INCOME) {
-        monthlyInflow += Number(t.amount) || 0;
+        monthlyInflowPaisa += toPaisaBigInt(t.amount);
       } else if (t.type === TRANSACTION_TYPES.EXPENSE) {
-        monthlyOutflow += Number(t.amount) || 0;
+        monthlyOutflowPaisa += toPaisaBigInt(t.amount);
       }
     }
   }
 
-  const netCashFlow = Math.round((monthlyInflow - monthlyOutflow) * 100) / 100;
+  const netCashFlowPaisa = monthlyInflowPaisa - monthlyOutflowPaisa;
 
   let savingsRate = 0;
-  if (monthlyInflow > 0 && netCashFlow > 0) {
-    savingsRate = (netCashFlow / monthlyInflow) * 100;
+  if (monthlyInflowPaisa > 0n && netCashFlowPaisa > 0n) {
+    savingsRate = Number((netCashFlowPaisa * 10000n) / monthlyInflowPaisa) / 100;
   }
 
-  let totalEarmarkedSavings = 0;
+  let totalEarmarkedSavingsPaisa = 0n;
   for (const goal of state.goals || []) {
     for (const alloc of goal.allocations || []) {
-      totalEarmarkedSavings += Number(alloc.amount) || 0;
+      totalEarmarkedSavingsPaisa += toPaisaBigInt(alloc.amount || 0);
     }
   }
 
-  const availableToAllocate = Math.round((estimatedLedgerBalance - totalEarmarkedSavings) * 100) / 100;
+  const availableToAllocatePaisa = estimatedLedgerBalancePaisa - totalEarmarkedSavingsPaisa;
 
   return {
     selectedMonth,
-    initialBalance: Math.round(initialBalance * 100) / 100,
+    initialBalance: fromPaisaBigInt(initialBalancePaisa),
     initialBalanceDate,
-    activeIncome: Math.round(activeIncome * 100) / 100,
-    activeExpense: Math.round(activeExpense * 100) / 100,
-    estimatedLedgerBalance,
-    monthlyInflow: Math.round(monthlyInflow * 100) / 100,
-    monthlyOutflow: Math.round(monthlyOutflow * 100) / 100,
-    netCashFlow,
+    activeIncome: fromPaisaBigInt(activeIncomePaisa),
+    activeExpense: fromPaisaBigInt(activeExpensePaisa),
+    estimatedLedgerBalance: fromPaisaBigInt(estimatedLedgerBalancePaisa),
+    monthlyInflow: fromPaisaBigInt(monthlyInflowPaisa),
+    monthlyOutflow: fromPaisaBigInt(monthlyOutflowPaisa),
+    netCashFlow: fromPaisaBigInt(netCashFlowPaisa),
     savingsRate,
-    totalEarmarkedSavings: Math.round(totalEarmarkedSavings * 100) / 100,
-    availableToAllocate
+    totalEarmarkedSavings: fromPaisaBigInt(totalEarmarkedSavingsPaisa),
+    availableToAllocate: fromPaisaBigInt(availableToAllocatePaisa)
   };
 }
 
@@ -139,17 +151,17 @@ export function filterAndSortTransactions(transactions, options = {}) {
 
   switch (sortBy) {
     case "oldest":
-      filtered.sort((a, b) => new Date(a.dateAD) - new Date(b.dateAD) || (a.createdAt || "").localeCompare(b.createdAt || ""));
+      filtered.sort((a, b) => (a.dateAD || "").localeCompare(b.dateAD || "") || (a.createdAt || "").localeCompare(b.createdAt || ""));
       break;
     case "highest":
-      filtered.sort((a, b) => b.amount - a.amount);
+      filtered.sort((a, b) => compareMoney(b.amount, a.amount));
       break;
     case "lowest":
-      filtered.sort((a, b) => a.amount - b.amount);
+      filtered.sort((a, b) => compareMoney(a.amount, b.amount));
       break;
     case "newest":
     default:
-      filtered.sort((a, b) => new Date(b.dateAD) - new Date(a.dateAD) || (b.createdAt || "").localeCompare(a.createdAt || ""));
+      filtered.sort((a, b) => (b.dateAD || "").localeCompare(a.dateAD || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
       break;
   }
 

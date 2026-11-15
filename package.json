@@ -1,10 +1,12 @@
 {
   "name": "merohisab",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "MeroHisab — Personal Finance Dashboard for Nepal",
   "type": "module",
   "scripts": {
-    "test": "node tests/calendar.test.js && node tests/domain.test.js",
+    "test": "node tests/calendar.test.js && node tests/domain.test.js && node tests/financial-reference.test.js && node tests/e2e.test.js",
+    "test:unit": "node tests/calendar.test.js && node tests/domain.test.js && node tests/financial-reference.test.js",
+    "test:ref": "node tests/financial-reference.test.js",
     "test:e2e": "node tests/e2e.test.js"
   }
 }

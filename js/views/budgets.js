@@ -246,8 +246,12 @@ export function renderBudgets(container, state) {
       });
 
       if (confirmed) {
-        deleteBudget(id);
-        showToast("Budget deleted successfully.", "info");
+        const res = await deleteBudget(id);
+        if (res && res.success) {
+          showToast("Budget deleted successfully.", "info");
+        } else {
+          showToast(res?.error || "Failed to delete budget.", "error");
+        }
       }
     });
   });
@@ -311,7 +315,7 @@ export function openBudgetModal(existingBudget = null, defaultPeriod = "2026-10"
     title: isEditing ? "Edit Budget Limit" : "Create Category Budget",
     contentHtml: formHtml,
     saveLabel: isEditing ? "Save Budget" : "Create Budget",
-    onSave: modalBody => {
+    onSave: async modalBody => {
       const budgetPeriod = modalBody.querySelector("#budget-modal-period").value;
       const category = modalBody.querySelector("#budget-modal-category").value;
       const amount = modalBody.querySelector("#budget-modal-amount").value;
@@ -324,9 +328,9 @@ export function openBudgetModal(existingBudget = null, defaultPeriod = "2026-10"
         amount: Number(amount)
       };
 
-      const result = setBudget(payload);
-      if (!result.success) {
-        errorDiv.textContent = result.errors.join(" ");
+      const result = await setBudget(payload);
+      if (!result || !result.success) {
+        errorDiv.textContent = (result?.errors || [result?.error || "Failed to save budget."]).join(" ");
         errorDiv.style.display = "block";
         return false;
       }

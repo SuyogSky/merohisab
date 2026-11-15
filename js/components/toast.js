@@ -1,5 +1,7 @@
 /**
  * MeroHisab — Non-blocking Toast Notification Component
+ * Strictly renders user and system messages using textContent and DOM construction
+ * to guarantee 100% protection against Cross-Site Scripting (XSS).
  */
 
 let container = null;
@@ -17,7 +19,7 @@ function ensureContainer() {
 }
 
 /**
- * Display a toast notification
+ * Display a toast notification safely
  * @param {string} message - Message text
  * @param {"success"|"warning"|"error"|"info"} type - Notification type
  * @param {number} duration - Auto-dismiss duration in ms
@@ -30,15 +32,22 @@ export function showToast(message, type = "info", duration = 3500) {
   toast.setAttribute("role", "status");
 
   // Icon mapping
-  let iconHtml = "ℹ️";
-  if (type === "success") iconHtml = "✓";
-  if (type === "warning") iconHtml = "⚠️";
-  if (type === "error") iconHtml = "✕";
+  let iconText = "ℹ️";
+  if (type === "success") iconText = "✓";
+  if (type === "warning") iconText = "⚠️";
+  if (type === "error") iconText = "✕";
 
-  toast.innerHTML = `
-    <span style="font-weight: bold; flex-shrink: 0;">${iconHtml}</span>
-    <span style="flex: 1;">${message}</span>
-  `;
+  const iconSpan = document.createElement("span");
+  iconSpan.style.fontWeight = "bold";
+  iconSpan.style.flexShrink = "0";
+  iconSpan.textContent = iconText;
+
+  const msgSpan = document.createElement("span");
+  msgSpan.style.flex = "1";
+  msgSpan.textContent = String(message ?? "");
+
+  toast.appendChild(iconSpan);
+  toast.appendChild(msgSpan);
 
   // Dismiss on click
   toast.addEventListener("click", () => {

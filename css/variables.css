@@ -79,6 +79,7 @@
   --bg-card-hover: #162447;
   --bg-card-subtle: #0d162e;
   --bg-input: #0e1730;
+  --color-surface: #111c38;
 
   --border-subtle: #1e2c52;
   --border-strong: #2a3d70;
@@ -105,6 +106,7 @@
   --bg-card-hover: #f8fafc;
   --bg-card-subtle: #f8fafc;
   --bg-input: #f1f5f9;
+  --color-surface: #ffffff;
 
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
